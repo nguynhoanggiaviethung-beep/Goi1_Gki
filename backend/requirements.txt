@@ -1,2 +1,7 @@
 fastapi>=0.115
 uvicorn[standard]>=0.34
+reportlab>=4.2
+--extra-index-url https://vnstocks.com/api/simple
+vnstock>=4.0.9
+pypdf>=5.0
+vnfinancialdata>=0.1.0

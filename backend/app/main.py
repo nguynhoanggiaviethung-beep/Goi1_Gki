@@ -1,6 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.app.scenarios import router as scenarios_router
+from backend.app.research_features import router as research_router
+from backend.app.company_reports import router as company_reports_router
+
 app = FastAPI(title="Goi1_Gki API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
@@ -9,6 +13,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(scenarios_router, prefix="/api")
+app.include_router(research_router, prefix="/api")
+app.include_router(company_reports_router, prefix="/api")
 
 @app.get("/")
 def root():
