@@ -200,8 +200,15 @@ if not online:
 
 # ============================================================ CHỌN MÃ
 TK = OPT["tickers"]
-ticker = st.selectbox("Mã cổ phiếu", TK, index=TK.index("FPT") if "FPT" in TK else 0, label_visibility="collapsed",
-                      placeholder="Nhập mã cổ phiếu, ví dụ FPT, HPG, VCB")
+# Ô chọn mã dùng chung cho các trang phân tích; trang "Báo cáo và tin doanh nghiệp" có ô nhập mã riêng nên ẩn ô này.
+# Mã đã chọn được lưu riêng để không mất khi chuyển qua trang không hiển thị ô chọn.
+_saved = st.session_state.get("ticker_saved", "FPT")
+if page == "Báo cáo và tin doanh nghiệp":
+    ticker = _saved
+else:
+    ticker = st.selectbox("Mã cổ phiếu", TK, index=TK.index(_saved) if _saved in TK else 0, label_visibility="collapsed",
+                          placeholder="Nhập mã cổ phiếu, ví dụ FPT, HPG, VCB")
+    st.session_state["ticker_saved"] = ticker
 
 
 YEAR_CHOICES = [0.25, 0.5, 1.0, 2.0, 3.0, 5.0]
@@ -575,7 +582,12 @@ elif page == "Báo cáo và tin doanh nghiệp":
     with st.container(border=True):
         sec("Tra cứu tài liệu doanh nghiệp")
         c1, c2, c3 = st.columns([1, 2, 3])
-        rt = c1.text_input("Mã cổ phiếu", ticker, key="report_ticker").strip().upper()
+        rt = c1.text_input("Mã cổ phiếu", st.session_state.get("report_ticker_saved", ticker), max_chars=10).strip().upper()
+        if rt != st.session_state.get("report_ticker_saved"):
+            # đổi mã -> xoá kết quả của mã cũ để không hiển thị lẫn
+            for k in ("annual", "financial", "news"):
+                st.session_state.pop(k, None)
+            st.session_state["report_ticker_saved"] = rt
         cname = c2.text_input("Tên gọi khác để lọc tin (không bắt buộc)", "", placeholder="VD: Hòa Phát, Vinamilk")
         site = c3.text_input("Trang tin chính thức (không bắt buộc)", "", placeholder="https://cong-ty.vn/tin-tuc")
         b1, b2, b3 = st.columns(3)
