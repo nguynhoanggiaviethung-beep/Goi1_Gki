@@ -27,7 +27,10 @@ from reportlab.platypus import (
 )
 
 from backend.app.market_data import fetch_live_inputs
+<<<<<<< HEAD
 from backend.app import vnequity_bridge as bridge
+=======
+>>>>>>> 4e651f5185c7e2c0052350c6c51df51f4fc0f590
 
 router = APIRouter(tags=["scenario analysis"])
 
@@ -61,7 +64,11 @@ class ScenarioRequest(BaseModel):
     dividend_yield_pct: float = Field(default=0, ge=0, le=100)
     buy_threshold_pct: float = 10
     sell_threshold_pct: float = -10
+<<<<<<< HEAD
     horizon_thresholds_pct: dict[int, dict[Literal["buy", "sell"], float]] = Field(default_factory=dict)
+=======
+    horizon_thresholds_pct: dict[Literal[3, 6, 12], dict[Literal["buy", "sell"], float]] = Field(default_factory=dict)
+>>>>>>> 4e651f5185c7e2c0052350c6c51df51f4fc0f590
     sensitivity_growth_pct: list[float] = Field(default_factory=list, max_length=15)
     sensitivity_pe: list[float] = Field(default_factory=list, max_length=15)
     growth_history: list[dict] = Field(default_factory=list)
@@ -116,7 +123,11 @@ class LiveScenarioRequest(BaseModel):
     dividend_yield_pct: float = Field(default=0, ge=0, le=100)
     buy_threshold_pct: float = 10
     sell_threshold_pct: float = -10
+<<<<<<< HEAD
     horizon_thresholds_pct: dict[int, dict[Literal["buy", "sell"], float]] = Field(default_factory=dict)
+=======
+    horizon_thresholds_pct: dict[Literal[3, 6, 12], dict[Literal["buy", "sell"], float]] = Field(default_factory=dict)
+>>>>>>> 4e651f5185c7e2c0052350c6c51df51f4fc0f590
     sensitivity_growth_pct: list[float] = Field(default_factory=list, max_length=15)
     sensitivity_pe: list[float] = Field(default_factory=list, max_length=15)
     purpose: str | None = None
@@ -128,10 +139,13 @@ class LiveScenarioRequest(BaseModel):
         if self.sell_threshold_pct >= self.buy_threshold_pct:
             raise ValueError("Ngưỡng bán phải nhỏ hơn ngưỡng mua.")
         for months, bounds in self.horizon_thresholds_pct.items():
+<<<<<<< HEAD
             if months not in (3, 6, 12):
                 raise ValueError("Ngưỡng theo kỳ hạn chỉ hỗ trợ 3, 6 hoặc 12 tháng.")
             if not {"buy", "sell"} <= set(bounds):
                 raise ValueError(f"Ngưỡng kỳ hạn {months} tháng cần đủ buy và sell.")
+=======
+>>>>>>> 4e651f5185c7e2c0052350c6c51df51f4fc0f590
             if bounds["sell"] >= bounds["buy"]:
                 raise ValueError(f"Ngưỡng bán phải nhỏ hơn ngưỡng mua ở kỳ hạn {months} tháng.")
         return self
@@ -306,6 +320,7 @@ def scenario_analyze(request: ScenarioRequest):
 
 
 def _analyze_live(request: LiveScenarioRequest) -> dict:
+<<<<<<< HEAD
     """Ưu tiên engine VNEquity (BCTC chuẩn hoá + giá ngày); mã ngoài bộ dữ liệu -> luồng vnstock gốc."""
     try:
         res = bridge.run(request)
@@ -317,6 +332,8 @@ def _analyze_live(request: LiveScenarioRequest) -> dict:
 
 
 def _analyze_live_vnstock(request: LiveScenarioRequest) -> dict:
+=======
+>>>>>>> 4e651f5185c7e2c0052350c6c51df51f4fc0f590
     live = fetch_live_inputs(
         ticker=request.ticker,
         growth_override=request.earnings_growth_pct,
@@ -542,6 +559,7 @@ def scenario_report(request: ScenarioReportRequest):
 @router.post("/scenario/live/report.pdf", response_class=StreamingResponse)
 def scenario_live_report(request: LiveScenarioReportRequest):
     """Fetch current available source data and create a customized scenario PDF."""
+<<<<<<< HEAD
     try:
         res = bridge.run(request)
         pdf = bridge.pdf_bytes(res, request.report)
@@ -551,6 +569,9 @@ def scenario_live_report(request: LiveScenarioReportRequest):
     except bridge.EngineUnavailable:
         pass
     result = _analyze_live_vnstock(request)
+=======
+    result = _analyze_live(request)
+>>>>>>> 4e651f5185c7e2c0052350c6c51df51f4fc0f590
     pdf = _build_pdf(result, request.report)
     filename = f"scenario_{result['ticker']}_live.pdf"
     return StreamingResponse(

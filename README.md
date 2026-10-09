@@ -26,6 +26,7 @@ API docs: http://localhost:8000/docs
 
 Mặc định Streamlit gọi backend tại `http://127.0.0.1:8000`. Nếu backend ở máy/host khác, đặt biến môi trường `VNEQUITY_API_URL` trước khi chạy Streamlit.
 
+<<<<<<< HEAD
 ## Engine phân tích VNEquity (đã ghép vào backend)
 
 Backend hiện dùng engine `backend/vnequity` làm nguồn chính cho các endpoint mà giao diện gọi; schema trả về giữ nguyên nên `frontend/app.py` (và React `frontend/src`) không cần đổi cách gọi.
@@ -43,6 +44,8 @@ Biến môi trường: `VNEQUITY_OFFLINE=1` chỉ dùng dữ liệu giá đã l�
 
 Kiểm thử: `python -m pytest tests -q`.
 
+=======
+>>>>>>> 4e651f5185c7e2c0052350c6c51df51f4fc0f590
 ## API phân tích kịch bản đầu tư
 
 - `POST /api/scenario/analyze` nhận mã cổ phiếu, giá hiện tại, EPS dương, tăng trưởng EPS, P/E mục tiêu và nguồn/kỳ dữ liệu; trả về ba kịch bản cùng thẻ bằng chứng cho từng phép tính.

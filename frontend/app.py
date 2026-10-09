@@ -119,6 +119,7 @@ def run_analysis(payload: dict) -> dict:
     return result
 
 
+<<<<<<< HEAD
 def show_evidence(cards: list[dict], nested: bool = False) -> None:
     for index, card in enumerate(cards, 1):
         title = f"E{index} · {card.get('claim', 'Bằng chứng')}"
@@ -127,6 +128,11 @@ def show_evidence(cards: list[dict], nested: bool = False) -> None:
             st.caption(f"Công thức: {card.get('formula', '—')}  \nKỳ: {card.get('period', '—')} · Nguồn: {card.get('source', '—')}")
             continue
         with st.expander(title):
+=======
+def show_evidence(cards: list[dict]) -> None:
+    for index, card in enumerate(cards, 1):
+        with st.expander(f"E{index} · {card.get('claim', 'Bằng chứng')}"):
+>>>>>>> 4e651f5185c7e2c0052350c6c51df51f4fc0f590
             st.metric("Giá trị tính được", f"{money(card.get('value'), 2)} {card.get('unit', '')}")
             st.write("**Công thức:**", card.get("formula", "—"))
             st.write("**Kỳ:**", card.get("period", "—"), " · **Nguồn:**", card.get("source", "—"))
@@ -134,6 +140,7 @@ def show_evidence(cards: list[dict], nested: bool = False) -> None:
                 st.json(card["inputs"])
 
 
+<<<<<<< HEAD
 def show_claims(items: list[dict]) -> None:
     """Luận điểm/rủi ro của engine VNEquity: mỗi nhận định kèm thẻ bằng chứng (số liệu, phép tính, kỳ, nguồn)."""
     for item in items:
@@ -147,6 +154,8 @@ def show_claims(items: list[dict]) -> None:
             st.caption(f"Kỳ dữ liệu: {item.get('period') or '—'} · Nguồn: {item.get('source') or '—'}")
 
 
+=======
+>>>>>>> 4e651f5185c7e2c0052350c6c51df51f4fc0f590
 def render_result(result: dict) -> None:
     st.markdown(f"### {result['ticker']} · Báo giá {result.get('data_status', {}).get('price_period', 'gần nhất')}")
     scenarios = {row["key"]: row for row in result["scenarios"]}
@@ -162,8 +171,11 @@ def render_result(result: dict) -> None:
     for col, (label, value, sub) in zip(kpis, values):
         col.markdown(f"<div class='kpi'><div class='kpi-label'>{label}</div><div class='kpi-value'>{value}</div><div class='kpi-sub'>{sub}</div></div>", unsafe_allow_html=True)
 
+<<<<<<< HEAD
     if result.get("rating"):
         st.markdown(f"**Khuyến nghị mô hình: {result['rating']}** · {result.get('rating_reason', '')}")
+=======
+>>>>>>> 4e651f5185c7e2c0052350c6c51df51f4fc0f590
     if result.get("configuration_warnings"):
         for warning in result["configuration_warnings"]:
             st.warning(warning)
@@ -186,6 +198,7 @@ def render_result(result: dict) -> None:
                 growth = st.slider("Tăng trưởng EPS (%)", float(growth_min), float(growth_max), growth_value, 0.5, key=f"growth_{result['ticker']}_{key}")
                 pe = st.slider("P/E mục tiêu (×)", 0.1, max(60.0, pe_value + 10), pe_value, 0.1, key=f"pe_{result['ticker']}_{key}")
                 probabilities[key] = st.slider("Xác suất (%)", 0, 100, int(default_prob[key]), 5, key=f"prob_{result['ticker']}_{key}")
+<<<<<<< HEAD
                 # Chỉ gửi giá trị người dùng thực sự thay đổi (thanh trượt làm tròn theo bước)
                 change = {}
                 if abs(growth - growth_value) > 0.25:
@@ -194,6 +207,9 @@ def render_result(result: dict) -> None:
                     change["target_pe"] = pe
                 if change:
                     edited[key] = change
+=======
+                edited[key] = {"earnings_growth_pct": growth, "target_pe": pe}
+>>>>>>> 4e651f5185c7e2c0052350c6c51df51f4fc0f590
         if st.button("Cập nhật kịch bản", type="primary", key=f"recalc_{result['ticker']}"):
             if sum(probabilities.values()) != 100:
                 st.error("Tổng xác suất ba kịch bản cần bằng 100%.")
@@ -219,7 +235,11 @@ def render_result(result: dict) -> None:
             col.write(row.get("assessment", ""))
             with col.expander("Giả định & bằng chứng"):
                 col.write(row.get("assumption_basis", ""))
+<<<<<<< HEAD
                 show_evidence(row.get("evidence", []), nested=True)
+=======
+                show_evidence(row.get("evidence", []))
+>>>>>>> 4e651f5185c7e2c0052350c6c51df51f4fc0f590
 
     chart_col, evidence_col = st.columns([3, 2])
     with chart_col.container(border=True):
@@ -246,7 +266,11 @@ def render_result(result: dict) -> None:
         grid = result.get("sensitivity_grid", {})
         cells = grid.get("cells", [])
         if cells:
+<<<<<<< HEAD
             st.dataframe(pd.DataFrame({f"P/E {money(pe, 1)}×": [money(cell["estimated_price"]) for row in cells for cell in row["prices"] if cell["target_pe"] == pe] for pe in grid.get("target_pe", [])}, index=[f"Growth {money(row['growth_pct'], 1)}%" for row in cells]), use_container_width=True)
+=======
+            st.dataframe(pd.DataFrame({f"P/E {money(cell['target_pe'], 1)}×": [money(cell["estimated_price"]) for row in cells for cell in row["prices"] if cell["target_pe"] == pe] for pe in grid.get("target_pe", [])}, index=[f"Growth {money(row['growth_pct'], 1)}%" for row in cells]), use_container_width=True)
+>>>>>>> 4e651f5185c7e2c0052350c6c51df51f4fc0f590
         else:
             st.info("Chưa có dữ liệu độ nhạy.")
     with st.expander("Giới hạn mô hình"):
@@ -314,6 +338,7 @@ elif page == PAGES[1]:
                 st.markdown(f"#### {scenario['label']} · {money(scenario['estimated_price'])} ₫ · {percent(scenario['expected_return_pct'])}")
                 st.write(scenario.get("assumption_basis", ""))
                 show_evidence(scenario.get("evidence", []))
+<<<<<<< HEAD
         if result.get("thesis") or result.get("risks"):
             left, right = st.columns(2)
             with left:
@@ -322,6 +347,8 @@ elif page == PAGES[1]:
             with right:
                 st.markdown("#### Rủi ro cần theo dõi")
                 show_claims(result.get("risks", []))
+=======
+>>>>>>> 4e651f5185c7e2c0052350c6c51df51f4fc0f590
         st.markdown("**Nguồn và kỳ dữ liệu**")
         st.json(result.get("data_status", {}))
 
