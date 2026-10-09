@@ -145,7 +145,6 @@ def _fetch_quote(market, ticker: str) -> dict:
 
 
 def fetch_live_inputs(ticker: str, growth_override: float | None = None, pe_override: float | None = None) -> dict:
-<<<<<<< HEAD
     """Fetch latest quote + annual EPS/P-E ratios; never fabricate unavailable fields.
 
     Ưu tiên engine VNEquity (BCTC chuẩn hoá); mã ngoài bộ dữ liệu mới gọi vnstock.
@@ -160,9 +159,6 @@ def fetch_live_inputs(ticker: str, growth_override: float | None = None, pe_over
                     "freshness": snap["price_period"], "growth_history": [], "pe_history": [], "growth_period": snap["eps_period"]}
     except Exception:  # noqa: BLE001 - quay về luồng vnstock gốc
         pass
-=======
-    """Fetch latest quote + annual EPS/P-E ratios; never fabricate unavailable fields."""
->>>>>>> 4e651f5185c7e2c0052350c6c51df51f4fc0f590
     try:
         from vnstock import Fundamental, Market
     except ImportError as exc:
