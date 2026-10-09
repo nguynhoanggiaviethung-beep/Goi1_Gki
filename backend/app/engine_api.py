@@ -211,6 +211,50 @@ def financials(ticker: str, years: int = Query(default=10, ge=1, le=20)):
                   "data": {c: df[c].tolist() for c in df.columns if pd.api.types.is_numeric_dtype(df[c])}})
 
 
+STATEMENT_LAYOUT = {
+    "Kết quả kinh doanh": ["revenue", "cogs", "gross_profit", "fin_income", "fin_exp", "interest_exp", "selling_exp", "admin_exp",
+                           "nii", "fee_income", "opex", "ppop", "provision", "ebit", "ebitda", "pbt", "npat", "npat_parent",
+                           "eps_reported"],
+    "Cân đối kế toán": ["total_assets", "current_assets", "cash", "st_investments", "receivables", "inventory", "loans",
+                        "loan_reserve", "fixed_assets", "liabilities", "current_liab", "st_debt", "lt_liab", "lt_debt", "deposits",
+                        "equity", "share_capital", "retained_earnings", "minority_equity"],
+    "Lưu chuyển tiền tệ": ["cfo", "depreciation", "capex", "cfi", "debt_raised", "debt_repaid", "dividends_paid", "cff"],
+}
+RAW_NAME = {"balance_sheet": "Cân đối kế toán", "income_statement": "Kết quả kinh doanh", "cash_flow": "Lưu chuyển tiền tệ"}
+
+
+@router.get("/statements/{ticker}")
+def statements(ticker: str, years: int = Query(default=5, ge=1, le=15)):
+    """BCTC năm hợp nhất đã chuẩn hoá: các chỉ tiêu chính theo đúng thứ tự báo cáo + toàn bộ chỉ tiêu gốc (khác 0)."""
+    from backend.vnequity.data.financials import FIELD_LABEL_VI, raw_items
+
+    t = ticker.upper()
+    f = get_financials(t)
+    if f.empty:
+        raise HTTPException(status_code=404, detail=f"Chưa có BCTC chuẩn hoá cho {t} (ngoài 716 mã HSX/HNX của bộ dữ liệu).")
+    f = f.tail(years)
+    yrs = [int(y) for y in f.index]
+    main = {}
+    for name, fields in STATEMENT_LAYOUT.items():
+        rows = []
+        for k in fields:
+            if k in f and f[k].notna().any() and (f[k].fillna(0) != 0).any():
+                rows.append({"item": FIELD_LABEL_VI.get(k, k), "unit": "đồng" if k == "eps_reported" else "tỷ đồng",
+                             "values": {str(y): (f.at[y, k] if k == "eps_reported" else f.at[y, k] / 1e9) for y in f.index}})
+        main[name] = rows
+    raw = {}
+    r = raw_items(t)
+    if not r.empty:
+        r = r[[c for c in r.columns if int(c) in yrs]]
+        for (st_, code, item), vals in r.iterrows():
+            if vals.fillna(0).abs().sum() == 0:
+                continue
+            raw.setdefault(RAW_NAME.get(st_, st_), []).append(
+                {"item": item, "code": code, "values": {str(int(y)): vals[y] / 1e9 for y in r.columns}})
+    return clean({"ticker": t, "name": get_profile(t).name, "years": yrs, "main": main, "raw": raw,
+                  "source": "BCTC hợp nhất năm đã kiểm toán, bộ dữ liệu vn-annual-report-miner (HSX, HNX), chuẩn hoá bởi VNEquity"})
+
+
 class ScreenRequest(BaseModel):
     min_revenue_bil: float = Field(default=1000, ge=0)
     exchange: Literal["HSX", "HNX"] | None = None

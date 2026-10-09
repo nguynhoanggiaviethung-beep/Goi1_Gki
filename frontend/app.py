@@ -615,30 +615,40 @@ elif page == "Báo cáo và tin doanh nghiệp":
         rt = c1.text_input("Mã cổ phiếu", st.session_state.get("report_ticker_saved", ticker), max_chars=10).strip().upper()
         if rt != st.session_state.get("report_ticker_saved"):
             # đổi mã -> xoá kết quả của mã cũ để không hiển thị lẫn
-            for k in ("annual", "financial", "news"):
+            for k in ("annual", "financial", "news", "report_view"):
                 st.session_state.pop(k, None)
             st.session_state["report_ticker_saved"] = rt
         cname = c2.text_input("Tên gọi khác để lọc tin (không bắt buộc)", "", placeholder="VD: Hòa Phát, Vinamilk")
         site = c3.text_input("Trang tin chính thức (không bắt buộc)", "", placeholder="https://cong-ty.vn/tin-tuc")
         b1, b2, b3 = st.columns(3)
-        if b1.button("Báo cáo thường niên", width="stretch"):
+        VIEW_LABEL = {"annual": "Báo cáo thường niên", "financial": "Báo cáo tài chính", "news": "Tin doanh nghiệp"}
+        cur_view = st.session_state.get("report_view")
+        clicked = None
+        for col, key in zip((b1, b2, b3), VIEW_LABEL):
+            if col.button(VIEW_LABEL[key], width="stretch", type="primary" if cur_view == key else "secondary"):
+                clicked = key
+        if clicked:
+            st.session_state["report_view"] = clicked
             try:
-                st.session_state["annual"] = (rt, api("GET", "/api/reports/annual/available", params={"ticker": rt}))
+                with st.spinner(f"Đang tải {VIEW_LABEL[clicked].lower()} {rt}..."):
+                    if clicked == "annual":
+                        st.session_state["annual"] = (rt, api("GET", "/api/reports/annual/available", params={"ticker": rt}))
+                    elif clicked == "financial":
+                        st.session_state["financial"] = (rt, api("GET", f"/api/engine/statements/{rt}", params={"years": 5}))
+                    else:
+                        st.session_state["news"] = (rt, api("GET", f"/api/news/company/{rt}",
+                                                            params={"company_name": cname, "company_website": site}))
+                st.session_state.pop("report_error", None)
             except RuntimeError as exc:
-                st.error(str(exc))
-        if b2.button("Báo cáo tài chính", width="stretch"):
-            try:
-                st.session_state["financial"] = (rt, api("GET", f"/api/reports/financial/{rt}", params={"years": 5}))
-            except RuntimeError as exc:
-                st.error(str(exc))
-        if b3.button("Tin doanh nghiệp", width="stretch"):
-            try:
-                st.session_state["news"] = (rt, api("GET", f"/api/news/company/{rt}",
-                                                    params={"company_name": cname, "company_website": site}))
-            except RuntimeError as exc:
-                st.error(str(exc))
+                st.session_state.pop(clicked, None)
+                st.session_state["report_error"] = str(exc)
+            st.rerun()
 
-    if st.session_state.get("annual"):
+    view = st.session_state.get("report_view")
+    if st.session_state.get("report_error"):
+        st.error(st.session_state["report_error"])
+    # Chỉ hiển thị đúng mục vừa chọn
+    if view == "annual" and st.session_state.get("annual"):
         code, annual = st.session_state["annual"]
         with st.container(border=True):
             sec(f"Báo cáo thường niên - {code}")
@@ -651,15 +661,37 @@ elif page == "Báo cáo và tin doanh nghiệp":
                             unsafe_allow_html=True)
                 c2.link_button("Tải PDF", f"{API_BASE}/api/reports/annual/{code}/{rep['year']}/download", width="stretch")
             st.caption(annual.get("warning", ""))
-    if st.session_state.get("financial"):
+
+    elif view == "financial" and st.session_state.get("financial"):
         code, fin = st.session_state["financial"]
+        yrs = [str(y) for y in fin["years"]]
         with st.container(border=True):
             sec(f"Báo cáo tài chính - {code}")
-            for statement, records in fin.get("statements", {}).items():
-                with st.expander(f"{statement.replace('_', ' ').capitalize()} ({len(records)} dòng)"):
-                    st.dataframe(pd.DataFrame(records), hide_index=True, width="stretch")
-            st.caption(fin.get("coverage_note", ""))
-    if st.session_state.get("news"):
+            for y in reversed(yrs):
+                rows = [{"Báo cáo": stmt, "Chỉ tiêu": r_["item"], "Mã chỉ tiêu": r_["code"], f"Năm {y} (tỷ đồng)": r_["values"].get(y)}
+                        for stmt, items in fin["raw"].items() for r_ in items if r_["values"].get(y) not in (None, 0)]
+                c1, c2 = st.columns([5, 1])
+                c1.markdown(f"<div class='muted'><b>{y}</b> | BCTC hợp nhất năm {y} | Cân đối kế toán, Kết quả kinh doanh, "
+                            f"Lưu chuyển tiền tệ | {len(rows)} chỉ tiêu</div>", unsafe_allow_html=True)
+                c2.download_button("Tải Excel", pd.DataFrame(rows).to_csv(index=False).encode("utf-8-sig"),
+                                   file_name=f"BCTC_{code}_{y}.csv", mime="text/csv", width="stretch", key=f"dl_bctc_{y}")
+            st.caption(f"Nguồn: {fin.get('source', '')}. Tệp tải về là CSV, mở trực tiếp bằng Excel.")
+        with st.container(border=True):
+            sec(f"Xem nhanh các chỉ tiêu chính - đơn vị tỷ đồng ({yrs[0]}-{yrs[-1]})")
+            tabs = st.tabs(list(fin["main"]) + ["Toàn bộ chỉ tiêu gốc"])
+            for tab, (stmt, items) in zip(tabs, fin["main"].items()):
+                with tab:
+                    st.dataframe(pd.DataFrame([{"Chỉ tiêu": r_["item"],
+                                                **{y: num(r_["values"].get(y), 0 if r_["unit"] == "đồng" else 1) for y in yrs}}
+                                               for r_ in items]), hide_index=True, width="stretch",
+                                 height=min(38 * (len(items) + 1) + 4, 720))
+            with tabs[-1]:
+                for stmt, items in fin["raw"].items():
+                    with st.expander(f"{stmt} ({len(items)} chỉ tiêu)"):
+                        st.dataframe(pd.DataFrame([{"Chỉ tiêu": r_["item"], **{y: num(r_["values"].get(y), 1) for y in yrs}}
+                                                   for r_ in items]), hide_index=True, width="stretch")
+
+    elif view == "news" and st.session_state.get("news"):
         code, news = st.session_state["news"]
         with st.container(border=True):
             sec(f"Tin doanh nghiệp - {code}")
