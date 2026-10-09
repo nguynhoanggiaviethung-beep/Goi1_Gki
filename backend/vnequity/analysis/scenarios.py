@@ -90,8 +90,9 @@ G_LONG_TERM = 0.07     # tăng trưởng EPS dài hạn danh nghĩa của kịch
 # Chỉ giảm, không kéo tăng trưởng thấp đi lên (kịch bản tiêu cực không được "cứu" bởi giả định hội tụ).
 LONG_TERM_ANCHOR = {"bull": 0.10, "base": G_LONG_TERM, "bear": 0.0}
 MARKET_PE = 13.0      # P/E bình quân dài hạn của thị trường cổ phiếu Việt Nam (VN-Index, xấp xỉ)
-HORIZON_YEARS = {"short": 0.25, "medium": 1.0, "long": 3.0}
+HORIZON_YEARS = {"short": 0.25, "medium": 1.0, "long": 2.0}
 HORIZON_CHOICES = (0.25, 0.5, 1.0, 2.0, 3.0, 5.0)
+MAX_YEARS = 5.0
 # Khẩu vị rủi ro quyết định mức "căng" của kịch bản: xác suất, độ sâu kịch bản tiêu cực, độ cao kịch bản tích cực
 RISK_PRESET = {
     "conservative": {"prob": (0.20, 0.50, 0.30), "bull_sigma": 0.75, "bear_sigma": 2.0, "bull_pe": 1.05, "bear_pe": 0.85},
@@ -116,6 +117,41 @@ def growth_in_year(g0: float, i: int, key: str = "base") -> float:
     (nếu g0 đã thấp hơn mức dài hạn thì giữ nguyên g0)."""
     target = min(LONG_TERM_ANCHOR.get(key, G_LONG_TERM), g0)
     return g0 + (target - g0) * min(i, 4) / 4
+
+
+def market_confirmation(res) -> dict:
+    """Thị trường đã xác nhận việc định giá lại chưa (lấy từ chiến lược xu hướng - sức mạnh tương đối).
+
+    - Xu hướng: EMA20 > EMA50 và giá > SMA200.
+    - Sức mạnh tương đối: lợi suất cổ phiếu vượt VN-Index, bình quân 3 khung 63/126/252 phiên (bỏ 5 phiên gần nhất).
+    Cả hai đạt -> P/E được phép tăng về mức đích như bình thường; đạt một -> một nửa; không đạt -> kịch bản cơ sở
+    KHÔNG giả định P/E tăng (cổ phiếu đang giảm thì thị trường chưa trả giá cao hơn). Giảm P/E luôn được áp dụng đủ.
+    """
+    px = res.prices.set_index("date")["close"].astype(float)
+    out = {"trend_ok": None, "rs_ok": None, "factor": 1.0, "ema20": np.nan, "ema50": np.nan, "sma200": np.nan,
+           "close": float(px.iloc[-1]), "excess": {}, "rs_excess": np.nan, "anti": np.nan}
+    if len(px) >= 200:
+        e20 = float(px.ewm(span=20, adjust=False).mean().iloc[-1])
+        e50 = float(px.ewm(span=50, adjust=False).mean().iloc[-1])
+        s200 = float(px.rolling(200).mean().iloc[-1])
+        out.update(ema20=e20, ema50=e50, sma200=s200, trend_ok=bool(e20 > e50 and px.iloc[-1] > s200))
+        if "atr14" in res.prices and pd.notna(res.prices["atr14"].iloc[-1]) and res.prices["atr14"].iloc[-1] > 0:
+            out["anti"] = float((px.iloc[-1] - e20) / res.prices["atr14"].iloc[-1])
+    idx = res.index_prices
+    if idx is not None and len(idx):
+        ix = idx.set_index("date")["close"].astype(float).reindex(px.index).ffill()
+        for n in (63, 126, 252):
+            if len(px) > n + 5 and pd.notna(ix.iloc[-6 - n]):
+                r_s = px.iloc[-6] / px.iloc[-6 - n] - 1
+                r_m = ix.iloc[-6] / ix.iloc[-6 - n] - 1
+                out["excess"][n] = float(r_s - r_m)
+        if out["excess"]:
+            out["rs_excess"] = float(np.mean(list(out["excess"].values())))
+            out["rs_ok"] = bool(out["rs_excess"] > 0)
+    oks = [x for x in (out["trend_ok"], out["rs_ok"]) if x is not None]
+    if oks:
+        out["factor"] = sum(oks) / len(oks)
+    return out
 
 
 def default_years(horizon: str) -> float:
@@ -152,8 +188,14 @@ def default_assumptions(res, years: float | None = None) -> dict:
     if pd.isna(cur_pe):
         cur_pe = hist_avg
     k = converge(t)
+    mc = market_confirmation(res)
     tgt = {"base": hist_avg, "bull": rk["bull_pe"] * max(cur_pe, hist_avg), "bear": rk["bear_pe"] * min(cur_pe, hist_avg)}
-    pe = {key: cur_pe + k * (tgt[key] - cur_pe) for key in tgt}
+    # Tăng P/E chỉ khi thị trường xác nhận (xu hướng + sức mạnh tương đối); tích cực luôn giữ ít nhất một nửa,
+    # cơ sở theo đúng mức xác nhận; giảm P/E (de-rating) luôn áp dụng đủ.
+    up_factor = {"bull": max(0.5, mc["factor"]), "base": mc["factor"], "bear": 1.0}
+    pe = {key: cur_pe + k * (tgt[key] - cur_pe) * (up_factor[key] if tgt[key] > cur_pe else 1.0) for key in tgt}
+    # Chặn hợp lý: P/E cuối kỳ trong khoảng 0,6 - 1,6 lần P/E hiện tại
+    pe = {key: float(np.clip(val, 0.6 * cur_pe, 1.6 * cur_pe)) for key, val in pe.items()}
     payout = gd.get("payout_3y")
     payout = float(np.clip(payout, 0, 1)) if pd.notna(payout) else 0.3
     p_bull, p_base, p_bear = rk["prob"]
@@ -162,9 +204,10 @@ def default_assumptions(res, years: float | None = None) -> dict:
         "sigma": sigma, "sigma_raw": sigma_raw, "yoy": yoy, "g_base": g_base, "cur_pe": cur_pe, "hist_avg": hist_avg,
         "stock_pe_12m": stock_pe, "market_pe": MARKET_PE,
         "ref_src": ref_src, "payout": payout, "years": t, "converge": k, "pe_targets": tgt, "risk": rk,
-        "bull": {"eps_growth": g_base + rk["bull_sigma"] * sigma, "exit_pe": pe["bull"], "payout": payout, "probability": p_bull},
+        "market": mc,
+        "bull": {"eps_growth": min(g_base + rk["bull_sigma"] * sigma, 0.30), "exit_pe": pe["bull"], "payout": payout, "probability": p_bull},
         "base": {"eps_growth": g_base, "exit_pe": pe["base"], "payout": payout, "probability": p_base},
-        "bear": {"eps_growth": g_base - rk["bear_sigma"] * sigma, "exit_pe": pe["bear"], "payout": payout, "probability": p_bear},
+        "bear": {"eps_growth": max(g_base - rk["bear_sigma"] * sigma, -0.30), "exit_pe": pe["bear"], "payout": payout, "probability": p_bear},
     }
 
 
@@ -195,7 +238,7 @@ def _run_one(s: Scenario, eps0: float, price: float, years: float, roe: float, k
 
 def build(res, overrides: dict | None = None, years: float | None = None) -> ScenarioSet:
     """Dựng bộ 3 kịch bản. overrides = {"bull": {"eps_growth": .., "exit_pe": .., "payout": .., "probability": ..}, ...}"""
-    years = float(years or default_years(res.user.horizon))
+    years = min(float(years or default_years(res.user.horizon)), MAX_YEARS)
     d = default_assumptions(res, years)
     v = res.val
     mm = v["multiples"]

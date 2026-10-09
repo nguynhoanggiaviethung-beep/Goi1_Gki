@@ -129,7 +129,8 @@ def _scenario_cards(res, s, ss, frac, src_fin, src_px, px_date, user_set: set) -
     else:
         tg = d["pe_targets"][s.key]
         pe_formula = (f"P/E hiện tại {F.num(d['cur_pe'], 2)} + (1 − 0,5^({F.num(ss.years, 2)}/2)) × (P/E đích {F.num(tg, 2)} − "
-                      f"{F.num(d['cur_pe'], 2)}) = {F.num(s.exit_pe, 2)}; P/E đích " +
+                      f"{F.num(d['cur_pe'], 2)})" + (f" × hệ số xác nhận thị trường {F.num(d['market']['factor'], 2)}" if tg > d["cur_pe"] and s.key != "bear" else "")
+                      + f" = {F.num(s.exit_pe, 2)}; P/E đích " +
                       {"base": f"= {d['ref_src']}", "bull": f"= {F.num(d['risk']['bull_pe'], 2)} × mức cao hơn giữa P/E hiện tại và tham chiếu",
                        "bear": f"= {F.num(d['risk']['bear_pe'], 2)} × mức thấp hơn giữa P/E hiện tại và tham chiếu"}[s.key])
     div_h = s.dividends

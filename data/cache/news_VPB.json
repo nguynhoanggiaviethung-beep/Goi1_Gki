@@ -1,0 +1,157 @@
+{
+ "ticker": "VPB",
+ "source": "CafeF (tin theo mã) + RSS báo kinh tế (tiêu đề nhắc đúng mã/tên)",
+ "fetched_at": "2026-10-09T12:09",
+ "items": [
+  {
+   "title": "CTCK với danh mục tự doanh cổ phiếu hàng đầu thị trường sở hữu trên 1% vốn VPBank",
+   "date": "09/10/2026 10:53",
+   "link": "https://cafef.vn/ctck-voi-danh-muc-tu-doanh-co-phieu-hang-dau-thi-truong-so-huu-tren-1-von-vpbank-188261009105014103.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "Danh mục cổ phiếu ngân hàng khủng của VIX: lộ diện số cổ phiếu VPBank trị giá hơn 2.700 tỷ đồng cùng hàng nghìn tỷ rót vào Eximbank, TCB",
+   "date": "09/10/2026 10:50",
+   "link": "https://cafef.vn/danh-muc-co-phieu-ngan-hang-khung-cua-vix-sau-eximbank-va-techcombank-lo-dien-so-co-phieu-vpbank-tri-gia-hon-2700-ty-dong-18826100810213419.chn",
+   "source": "CafeF"
+  },
+  {
+   "title": "VPB: Thông báo nhận được công văn của UBCKNN về việc nhận được tài liệu báo cáo kết quả đợt phát hành cổ phiếu để trả cổ tức",
+   "date": "08/10/2026 14:33",
+   "link": "https://cafef.vn/du-lieu/VPB-2993809/vpb-thong-bao-nhan-duoc-cong-van-cua-ubcknn-ve-viec-nhan-duoc-tai-lieu-bao-cao-ket-qua-dot-phat-hanh-co-phieu-de-tra-co-tuc.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Nghị quyết HĐQT về việc phê duyệt phương án mua lại trước hạn trái phiếu VPB12514",
+   "date": "08/10/2026 10:38",
+   "link": "https://cafef.vn/du-lieu/VPB-2993634/vpb-nghi-quyet-hdqt-ve-viec-phe-duyet-phuong-an-mua-lai-truoc-han-trai-phieu-vpb12514.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "Cake by VPBank và KiotViet hợp tác cung cấp giải pháp số toàn diện cho hộ kinh doanh",
+   "date": "07/10/2026 19:57",
+   "link": "https://vneconomy.vn/cake-by-vpbank-va-kiotviet-hop-tac-cung-cap-giai-phap-so-toan-dien-cho-ho-kinh-doanh.htm",
+   "source": "VnEconomy"
+  },
+  {
+   "title": "VPB: Nghị quyết HĐQT về việc phê duyệt chủ trương phương án phát hành trái phiếu quốc tế của VPBank",
+   "date": "07/10/2026 10:42",
+   "link": "https://cafef.vn/du-lieu/VPB-2992821/vpb-nghi-quyet-hdqt-ve-viec-phe-duyet-chu-truong-phuong-an-phat-hanh-trai-phieu-quoc-te-cua-vpbank.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Nghị quyết HĐQT về việc hợp đồng, giao dịch cho vay hợp vốn giữa VPBank và VPB SMBC FC",
+   "date": "07/10/2026 10:41",
+   "link": "https://cafef.vn/du-lieu/VPB-2992817/vpb-nghi-quyet-hdqt-ve-viec-hop-dong-giao-dich-cho-vay-hop-von-giua-vpbank-va-vpb-smbc-fc.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Thông báo thay đổi số lượng cổ phiếu có quyền biểu quyết, báo cáo kết quả phát hành cổ phiếu để trả cổ tức và Nghị quyết HĐQT",
+   "date": "01/10/2026 10:47",
+   "link": "https://cafef.vn/du-lieu/VPB-2988557/vpb-thong-bao-thay-doi-so-luong-co-phieu-co-quyen-bieu-quyet-bao-cao-ket-qua-phat-hanh-co-phieu-de-tra-co-tuc-va-nghi-quyet-hdqt.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Giải tỏa 35% đợt 3 cổ phần hạn chế chuyển nhượng ESOP 2023",
+   "date": "30/09/2026 10:49",
+   "link": "https://cafef.vn/du-lieu/VPB-2987525/vpb-giai-toa-35-dot-3-co-phan-han-che-chuyen-nhuong-esop-2023.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Nghị quyết HĐQT về hợp đồng, giao dịch cho vay hợp vốn giữa VPBank và GPBank",
+   "date": "29/09/2026 00:00",
+   "link": "https://cafef.vn/du-lieu/VPB-2987692/vpb-nghi-quyet-hdqt-ve-hop-dong-giao-dich-cho-vay-hop-von-giua-vpbank-va-gpbank.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Nghị quyết HĐQT về thay đổi địa điểm Chi nhánh Hải Vân",
+   "date": "28/09/2026 00:00",
+   "link": "https://cafef.vn/du-lieu/VPB-2985811/vpb-nghi-quyet-hdqt-ve-thay-doi-dia-diem-chi-nhanh-hai-van.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Nghị quyết HĐQT thông qua Hợp đồng, giao dịch cho vay hợp vốn giữa VPBank và VPB SMBC FC",
+   "date": "23/09/2026 00:00",
+   "link": "https://cafef.vn/du-lieu/VPB-2982258/vpb-nghi-quyet-hdqt-thong-qua-hop-dong-giao-dich-cho-vay-hop-von-giua-vpbank-va-vpb-smbc-fc.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Nghị quyết HĐQT thông qua hợp đồng, giao dịch cho vay hợp vốn giữa VPB và VPB SMBC FC",
+   "date": "18/09/2026 00:00",
+   "link": "https://cafef.vn/du-lieu/VPB-2979380/vpb-nghi-quyet-hdqt-thong-qua-hop-dong-giao-dich-cho-vay-hop-von-giua-vpb-va-vpb-smbc-fc.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: 24.9.2026, ngày GDKHQ chi trả cổ tức bằng cổ phiếu (tỷ lệ 26,04104%)",
+   "date": "17/09/2026 00:00",
+   "link": "https://cafef.vn/du-lieu/VPB-2978155/vpb-2492026-ngay-gdkhq-chi-tra-co-tuc-bang-co-phieu-ty-le-2604104.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Thông báo phát hành cổ phiếu để trả cổ tức",
+   "date": "16/09/2026 11:12",
+   "link": "https://cafef.vn/du-lieu/VPB-2977291/vpb-thong-bao-phat-hanh-co-phieu-de-tra-co-tuc.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Thông báo về ngày đăng ký cuối cùng phát hành cổ phiếu để trả cổ tức",
+   "date": "16/09/2026 00:00",
+   "link": "https://cafef.vn/du-lieu/VPB-2977292/vpb-thong-bao-ve-ngay-dang-ky-cuoi-cung-phat-hanh-co-phieu-de-tra-co-tuc.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Đính chính Báo cáo tình hình QTCT 6 tháng đầu năm 2026",
+   "date": "15/09/2026 17:06",
+   "link": "https://cafef.vn/du-lieu/VPB-2976805/vpb-dinh-chinh-bao-cao-tinh-hinh-qtct-6-thang-dau-nam-2026.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Nghị quyết HĐQT về việc thay đổi địa điểm Chi nhánh An Đông và Chi nhánh Thạch Mỹ Tây",
+   "date": "11/09/2026 00:00",
+   "link": "https://cafef.vn/du-lieu/VPB-2974348/vpb-nghi-quyet-hdqt-ve-viec-thay-doi-dia-diem-chi-nhanh-an-dong-va-chi-nhanh-thach-my-tay.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Thông báo đường dẫn Nghị quyết HĐQT số 255/2026 ngày 09/09/2026",
+   "date": "10/09/2026 00:00",
+   "link": "https://cafef.vn/du-lieu/VPB-2973437/vpb-thong-bao-duong-dan-nghi-quyet-hdqt-so-2552026-ngay-09092026.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Nghị quyết HĐQT về ngày đăng ký cuối cùng để thực hiện quyền nhận cổ tức bằng cổ phiếu",
+   "date": "10/09/2026 00:00",
+   "link": "https://cafef.vn/du-lieu/VPB-2973624/vpb-nghi-quyet-hdqt-ve-ngay-dang-ky-cuoi-cung-de-thuc-hien-quyen-nhan-co-tuc-bang-co-phieu.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Nghị quyết HĐQT về hợp đồng, giao dịch cho vay hợp vốn giữa VPBank và VPB SMBC FC",
+   "date": "09/09/2026 00:00",
+   "link": "https://cafef.vn/du-lieu/VPB-2972725/vpb-nghi-quyet-hdqt-ve-hop-dong-giao-dich-cho-vay-hop-von-giua-vpbank-va-vpb-smbc-fc.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Nghị quyết HĐQT về việc cấp hạn mức rủi ro và các hợp đồng, giao dịch với SMBC",
+   "date": "22/08/2026 00:00",
+   "link": "https://cafef.vn/du-lieu/VPB-2961018/vpb-nghi-quyet-hdqt-ve-viec-cap-han-muc-rui-ro-va-cac-hop-dong-giao-dich-voi-smbc.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Nghị quyết HĐQT phê duyệt phương án mua lại trước hạn trái phiếu VPB12513",
+   "date": "20/08/2026 00:00",
+   "link": "https://cafef.vn/du-lieu/VPB-2959613/vpb-nghi-quyet-hdqt-phe-duyet-phuong-an-mua-lai-truoc-han-trai-phieu-vpb12513.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Nghị quyết HĐQT thông qua hợp đồng, giao dịch cấp hạn mức tín dụng có TSBĐ cho CTCP Bảo hiểm OPES",
+   "date": "12/08/2026 00:00",
+   "link": "https://cafef.vn/du-lieu/VPB-2951581/vpb-nghi-quyet-hdqt-thong-qua-hop-dong-giao-dich-cap-han-muc-tin-dung-co-tsbd-cho-ctcp-bao-hiem-opes.chn",
+   "source": "CafeF - tin theo mã"
+  },
+  {
+   "title": "VPB: Nghị quyết HĐQT thông qua thỏa thuận dịch vụ quản lý tài khoản với VPBankS, OPES và ngân hàng đối tác",
+   "date": "12/08/2026 00:00",
+   "link": "https://cafef.vn/du-lieu/VPB-2951591/vpb-nghi-quyet-hdqt-thong-qua-thoa-thuan-dich-vu-quan-ly-tai-khoan-voi-vpbanks-opes-va-ngan-hang-doi-tac.chn",
+   "source": "CafeF - tin theo mã"
+  }
+ ]
+}

@@ -165,13 +165,13 @@ Goi1_Gki/
 | Số cổ phiếu lưu hành | `data/reference/shares_outstanding.csv` (có ghi nguồn, ngày cập nhật) |
 | Tin tức | CafeF, VnExpress (RSS) |
 
-**Mô hình kịch bản**
+**Mô hình định giá theo kịch bản** (kỳ hạn 3 tháng, 6 tháng, 1 năm hoặc 2 năm)
 
-- EPS cuối kỳ = EPS năm gần nhất × (1 + g)^n; Giá mục tiêu = P/E mục tiêu × EPS cuối kỳ.
-- Tỷ suất sinh lời = (Giá mục tiêu + Cổ tức nhận trong kỳ) / Giá hiện tại − 1. Giá trị kỳ vọng = Σ xác suất × kết quả từng kịch bản.
-- Tăng trưởng cơ sở g = trung vị của (CAGR lợi nhuận 3 năm, CAGR doanh thu 3 năm, ROE × (1 − tỷ lệ chi trả)). Tích cực = g + σ, Tiêu cực = g − 1,5σ (σ là độ lệch chuẩn tăng trưởng lợi nhuận, giới hạn 8-20%).
-- P/E cơ sở = (P/E hiện tại + P/E bình quân 12 tháng) / 2; Tích cực = 1,1 × mức cao hơn; Tiêu cực = 0,9 × mức thấp hơn. Xác suất mặc định 25% / 50% / 25%.
-- Khuyến nghị theo sinh lời kỳ vọng mỗi năm: ≥ 20% MUA; 10-20% KHẢ QUAN; ±10% NẮM GIỮ; −10 đến −20% KÉM KHẢ QUAN; < −20% BÁN. Hạ một bậc nếu tỷ lệ lợi nhuận/rủi ro < 1, nâng một bậc nếu kịch bản tiêu cực vẫn có lãi.
+- Giá cuối kỳ = P/E cuối kỳ × EPS cuối kỳ. Giá trị hợp lý = Σ xác suất × giá cuối kỳ của 3 kịch bản. Tỷ suất sinh lời = (giá cuối kỳ + cổ tức trong kỳ) / giá hiện tại − 1.
+- Tăng trưởng EPS năm đầu: cơ sở g = trung vị (CAGR lợi nhuận 3 năm, CAGR doanh thu 3 năm, ROE × (1 − tỷ lệ chi trả)); tích cực g + kσ (tối đa 30%), tiêu cực g − kσ (tối thiểu −30%); σ = độ lệch chuẩn tăng trưởng lợi nhuận, giới hạn 8-20%; k theo khẩu vị rủi ro. Từ năm thứ 2, tăng trưởng giảm dần về mức dài hạn (10% / 7% / 0%).
+- P/E cuối kỳ hội tụ dần từ P/E hiện tại về P/E đích (thu hẹp một nửa khoảng cách sau 2 năm). P/E đích cơ sở = trung bình (P/E 12 tháng của cổ phiếu; P/E thị trường 13); tích cực / tiêu cực = hệ số × mức cao / thấp hơn. P/E cuối kỳ giới hạn trong 0,6-1,6 lần P/E hiện tại.
+- **Xác nhận thị trường:** P/E chỉ được giả định TĂNG khi giá xác nhận - xu hướng (EMA20 > EMA50 và giá > SMA200) và sức mạnh so với VN-Index (lợi suất vượt chỉ số bình quân 63/126/252 phiên). Đạt cả hai: tăng như bình thường; đạt một: một nửa; không đạt: kịch bản cơ sở giữ P/E hiện tại. Giảm P/E luôn áp dụng đủ.
+- Khuyến nghị theo sinh lời kỳ vọng quy đổi năm: ≥ 20% MUA; 10-20% KHẢ QUAN; ±10% NẮM GIỮ; −10 đến −20% KÉM KHẢ QUAN; < −20% BÁN. Hạ một bậc nếu tỷ lệ lợi nhuận/rủi ro < 1, nâng một bậc nếu kịch bản tiêu cực vẫn có lãi.
 
 Mọi giả định mặc định đều có thẻ bằng chứng giải thích cách tính trong giao diện và trong PDF.
 

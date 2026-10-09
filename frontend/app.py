@@ -299,6 +299,15 @@ def _resid(s: dict, ss: dict):
     return s["annual_return"] - ((1 + eg) * (1 + pc) - 1)
 
 
+def _mc_text(mc: dict) -> str:
+    yn = lambda x: "chưa đủ dữ liệu" if x is None else ("đạt" if x else "không đạt")  # noqa: E731
+    f = mc.get("factor")
+    eff = {1.0: "P/E được tăng về mức đích như bình thường", 0.5: "P/E chỉ được tăng một nửa",
+           0.0: "kịch bản cơ sở không giả định P/E tăng"}.get(f, "")
+    return (f"Xác nhận thị trường: xu hướng giá <b>{yn(mc.get('trend_ok'))}</b>, sức mạnh so với VN-Index "
+            f"<b>{yn(mc.get('rs_ok'))}</b>, nên {eff}.") if f is not None else ""
+
+
 def compare_table(ss: dict) -> str:
     items = ss["items"]
     head = "".join(f"<th style='background:{SC[s['key']][0]}'>{s['name'].upper()}</th>" for s in items)
@@ -341,7 +350,7 @@ if page == "Kịch bản đầu tư":
     c = st.columns(5)
     rr = ss["risk_reward"]
     rr_txt = "Không lỗ" if rr is None else ("> 10 lần" if rr > 10 else f"{num(rr, 2)} lần")
-    kpi(c[0], "Giá trị kỳ vọng", f"{num(ss['expected_price'])} đ", "Bình quân gia quyền theo xác suất", NEU)
+    kpi(c[0], f"Giá trị hợp lý sau {ss['label']}", f"{num(ss['expected_price'])} đ", "Bình quân 3 kịch bản theo xác suất", NEU)
     kpi(c[1], f"Sinh lời kỳ vọng {ss['label']}", pct(ss["expected_return"], 1, sign=True), "Gồm cổ tức tiền mặt",
         sign_color(ss["expected_return"]))
     kpi(c[2], "Sinh lời kỳ vọng quy đổi năm", pct(ss["expected_annual"], 1, sign=True), "Căn cứ đưa ra khuyến nghị",
@@ -387,7 +396,7 @@ if page == "Kịch bản đầu tư":
                         f"Khẩu vị {OPT['risk'][risk].lower()}: xác suất {M['risk']['prob'][0]:.0%} / {M['risk']['prob'][1]:.0%} / "
                         f"{M['risk']['prob'][2]:.0%}, tích cực +{num(M['risk']['bull_sigma'], 2)}σ, tiêu cực −{num(M['risk']['bear_sigma'], 2)}σ "
                         f"(σ = {pct(M['sigma'])}). Sau {ss['label']}, P/E thu hẹp {pct(M['converge'], 0)} khoảng cách từ P/E hiện tại "
-                        f"{times(M['current_pe'])} tới P/E đích. Xác suất được tự chuẩn hoá về tổng 100%.</div>", unsafe_allow_html=True)
+                        f"{times(M['current_pe'])} tới P/E đích. " + _mc_text(M.get("market", {})) + " Xác suất được tự chuẩn hoá về tổng 100%.</div>", unsafe_allow_html=True)
 
     with st.container(border=True):
         sec("Biểu đồ kịch bản")

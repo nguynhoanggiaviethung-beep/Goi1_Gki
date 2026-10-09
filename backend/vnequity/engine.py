@@ -351,7 +351,26 @@ def build_evidence(r: AnalysisResult) -> EvidenceBook:
              period=px_period, source=f"{src_px}; {src_fin}",
              formula=f"P/E cuối kỳ = P/E hiện tại + (1 − 0,5^(T/2)) × (P/E đích − P/E hiện tại), T = số năm nắm giữ. Đích: cơ sở = {d['ref_src']}; "
                      f"tích cực = {F.num(d['risk']['bull_pe'], 2)} × mức cao hơn; tiêu cực = {F.num(d['risk']['bear_pe'], 2)} × mức thấp hơn",
-             calc=f"Cơ sở: {F.num(d['cur_pe'], 1)} + {F.num(d['converge'], 2)} × ({F.num(tg['base'], 1)} − {F.num(d['cur_pe'], 1)}) = {F.num(d['base']['exit_pe'], 1)}")
+             calc=f"Cơ sở: {F.num(d['cur_pe'], 1)} + {F.num(d['converge'], 2)} × hệ số xác nhận {F.num(d['market']['factor'], 2)} × "
+                  f"({F.num(tg['base'], 1)} − {F.num(d['cur_pe'], 1)}) = {F.num(d['base']['exit_pe'], 1)} (chặn trong 0,6 - 1,6 lần P/E hiện tại)")
+    mc = d["market"]
+    yn = lambda x: "chưa đủ dữ liệu" if x is None else ("đạt" if x else "không đạt")  # noqa: E731
+    msg = {1.0: "thị trường xác nhận: P/E được phép tăng về mức đích",
+           0.5: "thị trường xác nhận một phần: P/E chỉ tăng một nửa mức bình thường",
+           0.0: "thị trường chưa xác nhận: kịch bản cơ sở không giả định P/E tăng"}.get(mc["factor"], "")
+    book.add(f"Xác nhận thị trường cho việc định giá lại: xu hướng {yn(mc['trend_ok'])}, sức mạnh so với VN-Index {yn(mc['rs_ok'])} - {msg}.",
+             "scenario" if mc["factor"] else "risk",
+             metrics=[("Giá / EMA20 / EMA50", f"{F.num(mc['close'] * 1000)} / {F.num(mc['ema20'] * 1000)} / {F.num(mc['ema50'] * 1000)}"),
+                      ("SMA200", F.num(mc["sma200"] * 1000))]
+                     + [(f"Vượt VN-Index {n} phiên", _pct(x, 1, sign=True)) for n, x in mc["excess"].items()]
+                     + [("Khoảng cách tới EMA20", f"{F.num(mc['anti'], 2)} ATR14")],
+             period=px_period, source=f"{src_px}; {r.data_sources.get('VN-Index', '')}",
+             formula="Xu hướng: EMA20 > EMA50 và giá > SMA200. Sức mạnh: bình quân lợi suất vượt VN-Index 63/126/252 phiên "
+                     "(bỏ 5 phiên gần nhất) > 0. Hệ số = số điều kiện đạt / số điều kiện xét; áp vào phần P/E TĂNG",
+             calc=f"Hệ số xác nhận = {F.num(mc['factor'], 2)}", tone=1 if mc["factor"] == 1 else (-1 if mc["factor"] == 0 else 0))
+    if pd.notna(mc["anti"]) and mc["anti"] > 3:
+        book.add(f"Giá đang cách EMA20 {F.num(mc['anti'], 1)} lần ATR14 (> 3): đã tăng nóng, rủi ro điều chỉnh ngắn hạn.", "risk",
+                 period=px_period, source=src_px, formula="(Giá − EMA20) / ATR14 > 3", tone=-1)
     if d.get("eps_note"):
         book.add(f"EPS cơ sở cho mô hình kịch bản: {F.num(ss.eps0)}đ (chuẩn hoá).", "scenario",
                  source=src_fin, formula=d["eps_note"], calc=f"EPS chuẩn hoá = {F.num(ss.eps0)}đ", tone=-1)
