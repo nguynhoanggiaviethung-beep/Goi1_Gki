@@ -606,11 +606,34 @@ elif page == "Báo cáo và tin doanh nghiệp":
             sec(f"Tin doanh nghiệp - {code}")
             arts = news.get("articles", [])
             if not arts:
-                st.caption("Chưa tìm thấy tin phù hợp.")
+                sources = news.get("sources", {})
+                live = [name for name, state in sources.items() if state.get("status") == "ok"]
+                failed = [(name, state.get("error", "Nguồn không trả dữ liệu")) for name, state in sources.items()
+                          if state.get("status") != "ok"]
+                if live:
+                    st.info("Các nguồn đã được truy vấn nhưng chưa có tiêu đề khớp mã/tên doanh nghiệp. Hãy thử nhập tên công ty ở ô lọc tin.")
+                else:
+                    st.warning("Hiện không truy cập được các nguồn tin. Kiểm tra kết nối mạng/backend rồi thử lại.")
+                if failed:
+                    with st.expander("Nguồn tin đang lỗi"):
+                        for source, error in failed:
+                            st.write(f"**{source}:** {error}")
             for item in arts:
-                st.markdown(f"<div class='news'><div class='muted'>{item.get('source', '')} | {item.get('published_at', '') or ''}</div>"
-                            f"<a href='{item.get('url', '#')}' target='_blank'>{item.get('title', '')}</a>"
-                            f"<div class='muted'>{(item.get('summary') or '')[:260]}</div></div>", unsafe_allow_html=True)
+                with st.container(border=True):
+                    st.caption(f"{item.get('source', '')} | {item.get('published_at', '') or 'Ngày đăng không có trong nguồn'}")
+                    if item.get("url"):
+                        st.link_button(item.get("title", "Mở bài viết"), item["url"], width="stretch")
+                    else:
+                        st.markdown(f"**{item.get('title', 'Tin doanh nghiệp')}**")
+                    summary = (item.get("summary") or "").strip()
+                    if summary:
+                        st.write(summary[:500])
+            sources = news.get("sources", {})
+            if sources:
+                with st.expander("Tình trạng nguồn tin"):
+                    for source, state in sources.items():
+                        st.write(f"**{source}:** {state.get('matches', 0)} tin · "
+                                 f"{'đã truy cập' if state.get('status') == 'ok' else 'không truy cập được'}")
             st.caption(news.get("warning", ""))
 
 st.markdown("<div class='muted' style='text-align:center;margin-top:18px'>VNEquity Research | Công cụ nghiên cứu, "

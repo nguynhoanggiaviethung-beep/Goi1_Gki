@@ -46,7 +46,10 @@ MAX_REPORT_BYTES = 100 * 1024 * 1024
 REPORT_INDEX: list[dict[str, str]] = []
 REPORT_INDEX_TIME = 0.0
 SESSION = requests.Session()
-SESSION.headers.update({"User-Agent": "VietScope/0.1 (student research project; report lookup)"})
+SESSION.headers.update({
+    "User-Agent": "Mozilla/5.0 (compatible; VietScope/0.1; student research project)",
+    "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+})
 
 
 def _report_index(force: bool = False) -> list[dict[str, str]]:
@@ -362,29 +365,63 @@ def company_news(ticker: str, company_name: str = Query(default="", max_length=1
     if not re.fullmatch(r"[A-Z0-9]{2,10}", symbol): raise HTTPException(status_code=422, detail="Mã cổ phiếu không hợp lệ.")
     terms = [symbol.casefold()]
     generic_name_words = {"công", "ty", "cổ", "phần", "ctcp", "jsc", "joint", "stock", "company", "group", "tập", "đoàn"}
-    if company_name.strip(): terms.extend(word.casefold() for word in re.findall(r"[^\W_]+", company_name) if len(word) > 2 and word.casefold() not in generic_name_words)
+    if company_name.strip():
+        terms.extend(word.casefold() for word in re.findall(r"[^\W_]+", company_name) if len(word) > 2 and word.casefold() not in generic_name_words)
+    # CafeF has a ticker-specific endpoint; use it so company news still works
+    # when general-market RSS headlines omit the ticker symbol.
     results, sources = [], {}
+    cafef_url = f"https://cafef.vn/du-lieu/tin-doanh-nghiep/{symbol.lower()}/event.chn"
+    try:
+        response = SESSION.get(cafef_url, timeout=(5, 12))
+        response.raise_for_status()
+        parser = _LinksParser()
+        parser.feed(response.content.decode(response.encoding or "utf-8", errors="replace"))
+        seen_links = set()
+        for entry in parser.links:
+            title = html.unescape(re.sub(r"\s+", " ", entry["text"])).strip()
+            link = urljoin(cafef_url, entry["href"])
+            if (len(title) < 12 or not link.startswith("https://cafef.vn/") or
+                    not urlparse(link).path.lower().endswith(".chn") or link in seen_links):
+                continue
+            # The endpoint is already scoped to the ticker, so do not require
+            # the ticker to occur again in each article headline.
+            seen_links.add(link)
+            results.append({"ticker": symbol, "source": "CafeF", "title": title, "summary": "", "url": link,
+                            "published_at": None, "source_feed": cafef_url})
+        sources["CafeF"] = {"status": "ok", "matches": len(seen_links), "feed": cafef_url}
+    except Exception as exc:
+        sources["CafeF"] = {"status": "unavailable", "matches": 0, "feed": cafef_url, "error": str(exc)[:220]}
+
     for source, url in NEWS_FEEDS.items():
         try:
             response = SESSION.get(url, timeout=(5, 12))
             response.raise_for_status()
             root = ET.fromstring(response.content)
-            candidates = root.findall(".//item")
-            if not candidates:
-                ns = {"a": "http://www.w3.org/2005/Atom"}
-                candidates = root.findall(".//a:entry", ns)
+            # RSS feeds may use XML namespaces (including content:encoded),
+            # so match elements by local name instead of assuming bare tags.
+            candidates = [node for node in root.iter() if node.tag.rsplit("}", 1)[-1].split(":")[-1].lower() in {"item", "entry"}]
             matched = 0
             for item in candidates:
-                title = (item.findtext("title") or item.findtext("{http://www.w3.org/2005/Atom}title") or "").strip()
-                description = (item.findtext("description") or item.findtext("{http://www.w3.org/2005/Atom}summary") or "").strip()
-                link = (item.findtext("link") or "").strip()
+                fields = {node.tag.rsplit("}", 1)[-1].split(":")[-1].lower(): node for node in list(item)}
+                title_node = fields.get("title")
+                desc_node = fields.get("description") or fields.get("summary") or fields.get("encoded")
+                title = ("".join(title_node.itertext()) if title_node is not None else "").strip()
+                description = ("".join(desc_node.itertext()) if desc_node is not None else "").strip()
+                link_node = fields.get("link")
+                link = (link_node.attrib.get("href", "") if link_node is not None else "") or ("".join(link_node.itertext()).strip() if link_node is not None else "")
                 if not link:
                     link_node = item.find("{http://www.w3.org/2005/Atom}link")
                     link = link_node.attrib.get("href", "") if link_node is not None else ""
                 haystack = f"{title} {description}".casefold()
-                if title and any(term in haystack for term in terms):
-                    results.append({"ticker": symbol, "source": source, "title": title, "summary": re.sub(r"<[^>]+>", " ", description)[:1200], "url": link,
-                                    "published_at": item.findtext("pubDate") or item.findtext("{http://www.w3.org/2005/Atom}updated"), "source_feed": url})
+                # Avoid accidental substring hits (e.g. a short ticker inside
+                # an unrelated word), while still allowing punctuation around it.
+                ticker_match = re.search(rf"(?<![a-z0-9]){re.escape(symbol.casefold())}(?![a-z0-9])", haystack)
+                name_matches = any(re.search(rf"(?<![\w]){re.escape(term)}(?![\w])", haystack) for term in terms[1:])
+                if title and (ticker_match or name_matches):
+                    date_node = fields.get("pubdate") or fields.get("published") or fields.get("updated") or fields.get("date")
+                    published = "".join(date_node.itertext()).strip() if date_node is not None else None
+                    results.append({"ticker": symbol, "source": source, "title": title, "summary": re.sub(r"<[^>]+>", " ", html.unescape(description))[:1200], "url": link,
+                                    "published_at": published, "source_feed": url})
                     matched += 1
             sources[source] = {"status": "ok", "matches": matched, "feed": url}
         except Exception as exc:
