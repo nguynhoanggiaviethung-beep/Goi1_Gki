@@ -4,4 +4,7 @@ dist/
 __pycache__/
 *.py[cod]
 .env
+backend/data/company_reports/
 node-compile-cache/
+reports/
+data/cache/*_prices.csv
