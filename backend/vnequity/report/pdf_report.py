@@ -300,10 +300,10 @@ class ReportBuilder:
                                   ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]))
         big = ParagraphStyle("big", parent=ST["kpi_val"], textColor=col, fontSize=14, leading=18)
         kv = [("Tăng trưởng EPS/năm", pct(s.eps_growth, 1)), ("P/E mục tiêu", times(s.exit_pe)),
-              (f"EPS FY{ss.fy0 + ss.growth_years} (đ)", num(s.eps_path[-1])), ("Cổ tức nhận (đ)", num(s.dividends)),
-              ("Sinh lời mỗi năm", sgn(s.annual_return))]
+              ("EPS cuối kỳ (đ)", num(s.eps_path[-1])), ("Cổ tức nhận (đ)", num(s.dividends)),
+              ("Sinh lời quy đổi năm", sgn(s.annual_return))]
         flows = [head, Spacer(1, 4), Paragraph(f"{num(s.target_price)}đ", big),
-                 Paragraph(f"Sinh lời tổng <b>{sgn(s.total_return)}</b> sau {ss.years} năm", ST["kpi_sub"]),
+                 Paragraph(f"Sinh lời tổng <b>{sgn(s.total_return)}</b> sau {ss.label}", ST["kpi_sub"]),
                  Spacer(1, 4), self._kv(kv, inner)]
         return self._card(flows, width, bg=colors.HexColor(SCEN_TINT[s.key]), border=col)
 
@@ -328,7 +328,7 @@ class ReportBuilder:
                 self._kpi("Giá trị kỳ vọng", f"{num(ss.expected_price)}đ",
                           f"Khoảng {num(ss.scenarios['bear'].target_price)} - {num(ss.scenarios['bull'].target_price)}", kw,
                           colors.HexColor("#1E3A8A")),
-                self._kpi(f"Sinh lời kỳ vọng {ss.years} năm", pct(ss.expected_return, 1, sign=True),
+                self._kpi(f"Sinh lời kỳ vọng {ss.label}", pct(ss.expected_return, 1, sign=True),
                           f"{pct(ss.expected_annual, 1, sign=True)} mỗi năm, gồm cổ tức", kw,
                           GREEN if ss.expected_return >= 0 else RED),
                 self._kpi("Lợi nhuận / rủi ro", f"{rr} lần", f"Xác suất thua lỗ {pct(ss.prob_loss, 0)}", kw)]
@@ -371,23 +371,23 @@ class ReportBuilder:
         r, ss = self.r, self.r.scen
         self._h2("1. PHÂN TÍCH KỊCH BẢN ĐẦU TƯ")
         self.story.append(_p(
-            f"Giá trị cổ phiếu được ước tính theo 3 kịch bản thay vì một giá mục tiêu duy nhất. Kỳ hạn {ss.years} năm: "
-            f"EPS tăng trưởng {ss.growth_years} năm từ EPS FY{ss.fy0} = {num(ss.eps0)}đ; giá mục tiêu = P/E mục tiêu × EPS cuối kỳ; "
+            f"Giá trị cổ phiếu được ước tính theo 3 kịch bản thay vì một giá mục tiêu duy nhất. Kỳ hạn {ss.label}: "
+            f"EPS tăng trưởng trong {ss.label} từ EPS FY{ss.fy0} = {num(ss.eps0)}đ; giá mục tiêu = P/E cuối kỳ × EPS cuối kỳ; "
             f"tỷ suất sinh lời gồm cổ tức tiền mặt nhận trong kỳ."))
         self._gap()
         S = ss.ordered()
         rows = [["Giả định và kết quả"] + [s.name for s in S],
                 ["<b>Giả định</b>", "", "", ""],
-                ["Tăng trưởng EPS mỗi năm"] + [pct(s.eps_growth) for s in S],
-                ["P/E mục tiêu cuối kỳ"] + [times(s.exit_pe) for s in S],
+                ["Tăng trưởng EPS năm đầu"] + [pct(s.eps_growth) for s in S],
+                ["P/E cuối kỳ"] + [times(s.exit_pe) for s in S],
                 ["Tỷ lệ chi trả cổ tức"] + [pct(s.payout) for s in S],
                 ["Xác suất"] + [pct(s.probability, 0) for s in S],
                 ["<b>Kết quả</b>", "", "", ""],
-                [f"EPS FY{ss.fy0 + ss.growth_years} (đ)"] + [num(s.eps_path[-1]) for s in S],
+                ["EPS cuối kỳ (đ)"] + [num(s.eps_path[-1]) for s in S],
                 ["Giá mục tiêu (đ)"] + [f"<b>{num(s.target_price)}</b>" for s in S],
                 ["Cổ tức nhận trong kỳ (đ)"] + [num(s.dividends) for s in S],
-                [f"Sinh lời tổng ({ss.years} năm)"] + [f"<b>{sgn(s.total_return)}</b>" for s in S],
-                ["Sinh lời mỗi năm"] + [sgn(s.annual_return) for s in S],
+                [f"Sinh lời tổng ({ss.label})"] + [f"<b>{sgn(s.total_return)}</b>" for s in S],
+                ["Sinh lời quy đổi năm"] + [sgn(s.annual_return) for s in S],
                 ["Đối chiếu DCF với cùng tăng trưởng (đ)"] + [num(s.dcf_value) for s in S]]
         tbl = _table(rows, [CONTENT_W * 0.37] + [CONTENT_W * 0.21] * 3, highlight_rows=[1, 6])
         tbl.setStyle(TableStyle([("BACKGROUND", (i + 1, 0), (i + 1, 0), colors.HexColor(SCEN_HEX[s.key])) for i, s in enumerate(S)]

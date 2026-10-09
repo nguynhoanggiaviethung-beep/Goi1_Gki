@@ -97,7 +97,7 @@ def _overrides(req, res) -> dict:
 def run(req, risk: str = "balanced"):
     """Chạy engine với giả định trong request; trả về AnalysisResult đã áp kịch bản (kỳ dự phóng 12 tháng)."""
     res = _analysis(req.ticker, req.horizon_months, risk)
-    engine.apply_scenarios(res, _overrides(req, res), years=1)
+    engine.apply_scenarios(res, _overrides(req, res), years=(req.horizon_months or 12) / 12)
     return res
 
 
@@ -121,16 +121,18 @@ def _scenario_cards(res, s, ss, frac, src_fin, src_px, px_date, user_set: set) -
         g_formula = (f"trung vị(CAGR LNST 3 năm {F.pct(gd['g_npat_3y'])}; CAGR doanh thu 3 năm {F.pct(gd['g_rev_3y'])}; "
                      f"ROE × (1 − tỷ lệ chi trả) {F.pct(gd['g_sustainable'])}), chặn trong [−5%; 25%]")
     elif s.key == "bull":
-        g_formula = f"g cơ sở {F.pct(d['g_base'])} + σ {F.pct(d['sigma'])} (σ = độ lệch chuẩn tăng trưởng LNST năm, chặn 8-20%)"
+        g_formula = f"g cơ sở {F.pct(d['g_base'])} + {F.num(d['risk']['bull_sigma'], 2)} × σ {F.pct(d['sigma'])} (σ = độ lệch chuẩn tăng trưởng LNST năm, chặn 8-20%)"
     else:
-        g_formula = f"g cơ sở {F.pct(d['g_base'])} − 1,5 × σ {F.pct(d['sigma'])} (bất đối xứng, thận trọng phía giảm)"
+        g_formula = f"g cơ sở {F.pct(d['g_base'])} − {F.num(d['risk']['bear_sigma'], 2)} × σ {F.pct(d['sigma'])} (bất đối xứng, thận trọng phía giảm)"
     if "exit_pe" in user_set:
         pe_formula = "Giả định do người dùng nhập"
     else:
-        pe_formula = {"base": f"(P/E hiện tại {F.num(d['cur_pe'], 2)} + {d['ref_src']} {F.num(d['hist_avg'], 2)}) / 2",
-                      "bull": f"1,1 × max(P/E hiện tại {F.num(d['cur_pe'], 2)}; {d['ref_src']} {F.num(d['hist_avg'], 2)})",
-                      "bear": f"0,9 × min(P/E hiện tại {F.num(d['cur_pe'], 2)}; {d['ref_src']} {F.num(d['hist_avg'], 2)})"}[s.key]
-    div_h = s.dividends * frac
+        tg = d["pe_targets"][s.key]
+        pe_formula = (f"P/E hiện tại {F.num(d['cur_pe'], 2)} + (1 − 0,5^({F.num(ss.years, 2)}/2)) × (P/E đích {F.num(tg, 2)} − "
+                      f"{F.num(d['cur_pe'], 2)}) = {F.num(s.exit_pe, 2)}; P/E đích " +
+                      {"base": f"= {d['ref_src']}", "bull": f"= {F.num(d['risk']['bull_pe'], 2)} × mức cao hơn giữa P/E hiện tại và tham chiếu",
+                       "bear": f"= {F.num(d['risk']['bear_pe'], 2)} × mức thấp hơn giữa P/E hiện tại và tham chiếu"}[s.key])
+    div_h = s.dividends
     ret = (s.target_price + div_h) / ss.price - 1
     eps_formula = d.get("eps_note") or f"LNST công ty mẹ FY{fy0} {F.bil(npat)} tỷ / {F.num(shares)} cổ phiếu lưu hành"
     return [
@@ -141,20 +143,20 @@ def _scenario_cards(res, s, ss, frac, src_fin, src_px, px_date, user_set: set) -
          "inputs": {"g_base_pct": _f(d["g_base"] * 100, 2), "sigma_pct": _f(d["sigma"] * 100, 2),
                     "npat_growth_history_pct": [_f(x * 100, 2) for x in d["yoy"]]},
          "source": src_fin, "period": f"FY{fy0 - 3}-FY{fy0}", "retrieved_at": retrieved},
-        {"claim": f"EPS dự phóng FY{fy0 + n}", "value": _f(eps_end, 2), "unit": "đồng/cổ phiếu",
-         "formula": f"{F.num(ss.eps0)} × (1 + {F.pct(s.eps_growth)})^{n} = {F.num(eps_end)}",
+        {"claim": f"EPS cuối kỳ ({ss.label})", "value": _f(eps_end, 2), "unit": "đồng/cổ phiếu",
+         "formula": f"{F.num(ss.eps0)} × (1 + {F.pct(s.eps_growth)})^{F.num(n, 2)} = {F.num(eps_end)}" + (" (tăng trưởng hội tụ về 8% từ năm thứ 2)" if n > 1 else ""),
          "inputs": {"eps0": _f(ss.eps0, 2), "growth_pct": _f(s.eps_growth * 100, 2), "growth_years": n},
-         "source": "Mô hình kịch bản VNEquity", "period": f"FY{fy0 + 1}-FY{fy0 + n}", "retrieved_at": retrieved},
+         "source": "Mô hình kịch bản VNEquity", "period": f"{ss.label} kể từ hiện tại", "retrieved_at": retrieved},
         {"claim": "P/E mục tiêu", "value": _f(s.exit_pe, 2), "unit": "lần", "formula": pe_formula,
          "inputs": {"current_pe": _f(d["cur_pe"], 2), "reference_pe": _f(d["hist_avg"], 2), "reference": d["ref_src"]},
          "source": f"{src_px}; {src_fin}", "period": f"Giá đến {px_date}", "retrieved_at": retrieved},
         {"claim": "Giá ước tính theo kịch bản", "value": _f(s.target_price, 0), "unit": "đồng/cổ phiếu",
          "formula": f"EPS dự phóng {F.num(eps_end)} × P/E {F.num(s.exit_pe, 2)} = {F.num(s.target_price)}",
          "inputs": {"projected_eps": _f(eps_end, 2), "target_pe": _f(s.exit_pe, 2)},
-         "source": "Mô hình kịch bản VNEquity", "period": "Dự phóng 12 tháng", "retrieved_at": retrieved},
+         "source": "Mô hình kịch bản VNEquity", "period": f"Cuối kỳ {ss.label}", "retrieved_at": retrieved},
         {"claim": "Tỷ suất sinh lời theo kỳ hạn", "value": _f(ret * 100, 2), "unit": "%",
          "formula": (f"({F.num(s.target_price)} + cổ tức {F.num(div_h)}) / giá hiện tại {F.num(ss.price)} − 1 = {F.pct(ret, 2)}; "
-                     f"cổ tức = tỷ lệ chi trả {F.pct(s.payout)} × EPS FY{ss.fy0} × {F.num(frac, 2)} năm"),
+                     f"cổ tức = tỷ lệ chi trả {F.pct(s.payout)} × EPS × thời gian nắm giữ {ss.label}"),
          "inputs": {"estimated_price": _f(s.target_price, 0), "current_price": _f(ss.price, 0), "dividends": _f(div_h, 0),
                     "payout": _f(s.payout, 4), "holding_years": _f(frac, 4)},
          "source": src_px, "period": f"Giá đóng cửa {px_date}", "retrieved_at": retrieved},
@@ -196,16 +198,14 @@ def to_live(res, req) -> dict:
     for s in ss.ordered():
         k = KEY_OUT[s.key]
         user_set = set(ov.get(s.key, {}))
-        ret = ((s.target_price + s.dividends * frac) / ss.price - 1) * 100
+        ret = s.total_return * 100
         basis = []
         basis.append("tăng trưởng EPS do người dùng nhập" if "eps_growth" in user_set else
                      {"base": "tăng trưởng EPS = trung vị CAGR LNST 3 năm, CAGR doanh thu 3 năm và ROE × (1 − tỷ lệ chi trả)",
-                      "bull": "tăng trưởng EPS = cơ sở + 1σ biến động lợi nhuận lịch sử",
-                      "bear": "tăng trưởng EPS = cơ sở − 1,5σ biến động lợi nhuận lịch sử"}[s.key])
+                      "bull": "tăng trưởng EPS = cơ sở + k × σ biến động lợi nhuận lịch sử (k theo khẩu vị)",
+                      "bear": "tăng trưởng EPS = cơ sở − k × σ biến động lợi nhuận lịch sử (k theo khẩu vị)"}[s.key])
         basis.append("P/E do người dùng nhập" if "exit_pe" in user_set else
-                     {"base": "P/E = bình quân P/E hiện tại và P/E tham chiếu 12 tháng",
-                      "bull": "P/E = 1,1 × mức cao hơn giữa P/E hiện tại và tham chiếu",
-                      "bear": "P/E = 0,9 × mức thấp hơn giữa P/E hiện tại và tham chiếu"}[s.key])
+                     "P/E cuối kỳ hội tụ dần từ P/E hiện tại về P/E đích của kịch bản (chu kỳ bán rã 2 năm)")
         rows.append({
             "key": k, "label": LABEL[k],
             "earnings_growth_pct": _f(s.eps_growth * 100, 2),
@@ -214,10 +214,10 @@ def to_live(res, req) -> dict:
             "estimated_price": _f(s.target_price, 0),
             "expected_return_pct": _f(ret, 2),
             "probability_pct": _f(s.probability * 100, 1),
-            "dividends_per_share": _f(s.dividends * frac, 0),
+            "dividends_per_share": _f(s.dividends, 0),
             "dcf_reference_value": _f(s.dcf_value, 0),
             "assessment": "BUY" if ret >= buy else "SELL" if ret <= sell else "HOLD",
-            "assumption_basis": "Mô hình VNEquity: " + "; ".join(basis) + f". Kỳ dự phóng: EPS FY{ss.fy0} tăng trưởng {ss.growth_years} năm.",
+            "assumption_basis": "Mô hình VNEquity: " + "; ".join(basis) + f". Kỳ hạn {ss.label}: EPS FY{ss.fy0} tăng trưởng theo thời gian nắm giữ; P/E hội tụ dần về mức đích.",
             "evidence": _scenario_cards(res, s, ss, frac, src_fin, src_px, px_date, user_set),
         })
 
@@ -250,7 +250,7 @@ def to_live(res, req) -> dict:
         "exchange": res.profile.exchange,
         "industry": res.profile.icb3 or res.profile.icb2 or res.profile.icb1,
         "currency": "VND",
-        "horizon_years": 1,
+        "horizon_years": ss.years,
         "horizon_months": months,
         "current_price": _f(ss.price, 0),
         "engine": "VNEquity",
@@ -267,7 +267,7 @@ def to_live(res, req) -> dict:
         "rating_reason": res.rating_reason,
         "recommendation_thresholds_pct": {"buy": buy, "sell": sell, "horizon_months": months,
                                           "configured_by_horizon": bool(req.horizon_thresholds_pct)},
-        "growth_formula": f"EPS × (1 + g)^{ss.growth_years}",
+        "growth_formula": f"EPS × (1 + g)^{ss.growth_years:g}",
         "sensitivity_grid": {"growth_pct": g_list, "target_pe": pe_list, "cells": cells},
         "configuration_warnings": warnings,
         "data_types": {"market_inputs": "dữ liệu thực tế", "scenario_parameters": "giả định hệ thống/người dùng",

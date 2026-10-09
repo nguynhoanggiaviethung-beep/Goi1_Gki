@@ -14,7 +14,7 @@ from .analysis import peers as pa
 from .analysis import scoring as sc
 from .analysis import technical as ta
 from .analysis import valuation as va
-from .config import UserProfile, ValuationParams
+from .config import RISK_LABEL, UserProfile, ValuationParams
 from .data import company, financials, news, prices
 from .report import fmt as F
 
@@ -178,12 +178,12 @@ def build_evidence(r: AnalysisResult) -> EvidenceBook:
     b, base, bear = ss.scenarios["bull"], ss.scenarios["base"], ss.scenarios["bear"]
     book.add(
         f"Giá trị kỳ vọng (gia quyền 3 kịch bản) {F.num(ss.expected_price)}đ, TSSL kỳ vọng "
-        f"{_pct(ss.expected_return, sign=True)} trong {ss.years} năm ({_pct(ss.expected_annual, sign=True)}/năm); "
+        f"{_pct(ss.expected_return, sign=True)} trong {ss.label} ({_pct(ss.expected_annual, sign=True)}/năm); "
         f"biên độ {F.num(bear.target_price)}đ - {F.num(b.target_price)}đ.",
         "thesis" if ss.expected_annual > 0.05 else "risk",
         metrics=[(f"{s.name} (p={_pct(s.probability, 0)})", f"{F.num(s.target_price)}đ | {_pct(s.total_return, sign=True)}")
                  for s in ss.ordered()] + [("Giá hiện tại", F.num(ss.price) + "đ")],
-        period=f"EPS FY{ss.fy0} đến FY{ss.fy0 + ss.growth_years}; giá đến {t['date']:%d/%m/%Y}",
+        period=f"EPS FY{ss.fy0} tăng trưởng {ss.label}; giá đến {t['date']:%d/%m/%Y}",
         source=f"{src_fin}; {src_px}",
         formula="Giá mục tiêu = P/E mục tiêu × EPS·Π(1+g); TSSL = (Giá mục tiêu + Cổ tức)/Giá hiện tại − 1; "
                 "Kỳ vọng = Σ xác suất × TSSL",
@@ -198,7 +198,7 @@ def build_evidence(r: AnalysisResult) -> EvidenceBook:
         "thesis" if (not np.isfinite(rr) or rr >= 1.5) else "risk",
         metrics=[("TSSL tích cực", _pct(b.total_return, sign=True)), ("TSSL tiêu cực", _pct(bear.total_return, sign=True)),
                  ("Xác suất thua lỗ", _pct(ss.prob_loss, 0))],
-        period=f"Kỳ hạn {ss.years} năm", source="Mô hình kịch bản VNEquity",
+        period=f"Kỳ hạn {ss.label}", source="Mô hình kịch bản VNEquity",
         formula="Lợi nhuận/rủi ro = TSSL kịch bản tích cực / |TSSL kịch bản tiêu cực|",
         calc=(f"{_pct(b.total_return)} / {_pct(abs(bear.total_return))} = {F.num(rr, 2)}" if np.isfinite(rr) else "Tiêu cực ≥ 0"),
         tone=1 if (not np.isfinite(rr) or rr >= 1.5) else -1)
@@ -334,20 +334,29 @@ def build_evidence(r: AnalysisResult) -> EvidenceBook:
                       ("ROE × (1 − tỷ lệ chi trả)", _pct(gd["g_sustainable"]))],
              period=f"FY{fy - 3} - FY{fy}", source=src_fin, formula="g cơ sở = trung vị 3 thước đo, chặn trong [−5%; 25%]",
              calc=f"median({_pct(gd['g_npat_3y'])}, {_pct(gd['g_rev_3y'])}, {_pct(gd['g_sustainable'])}) = {_pct(d['g_base'])}")
-    book.add(f"Biên độ tăng trưởng giữa các kịch bản ±{_pct(d['sigma'])} (tích cực +1σ, tiêu cực −1,5σ).", "scenario",
+    rk = d["risk"]
+    book.add(f"Biên độ tăng trưởng: σ = {_pct(d['sigma'])}; tích cực +{F.num(rk['bull_sigma'], 2)}σ, tiêu cực −{F.num(rk['bear_sigma'], 2)}σ "
+             f"(khẩu vị {RISK_LABEL[r.user.risk].lower()}). Tăng trưởng hội tụ dần về {_pct(scn.G_LONG_TERM, 0)} vào năm thứ 5.", "scenario",
              metrics=[(f"Tăng trưởng LNST năm", " ; ".join(_pct(x) for x in d["yoy"]))] + [("Độ lệch chuẩn thực tế", _pct(d["sigma_raw"]))],
-             period="5 năm gần nhất", source=src_fin, formula="σ = độ lệch chuẩn tăng trưởng LNST hằng năm, chặn [8%; 20%]; kịch bản tiêu cực bất đối xứng",
-             calc=f"σ = {_pct(d['sigma'])}")
-    book.add(f"P/E mục tiêu: cơ sở {F.times(d['cur_pe'] / 2 + d['hist_avg'] / 2)}, tích cực {F.times(1.1 * max(d['cur_pe'], d['hist_avg']))}, "
-             f"tiêu cực {F.times(0.9 * min(d['cur_pe'], d['hist_avg']))}.", "scenario",
-             metrics=[("P/E hiện tại", F.times(d["cur_pe"])), (d["ref_src"], F.times(d["hist_avg"]))],
+             period="5 năm gần nhất", source=src_fin,
+             formula="σ = độ lệch chuẩn tăng trưởng LNST hằng năm, chặn [8%; 20%]; khẩu vị thận trọng đào sâu kịch bản tiêu cực hơn",
+             calc=f"Tích cực {_pct(d['g_base'])} + {F.num(rk['bull_sigma'], 2)} × {_pct(d['sigma'])} = {_pct(d['bull']['eps_growth'])}; "
+                  f"Tiêu cực {_pct(d['g_base'])} − {F.num(rk['bear_sigma'], 2)} × {_pct(d['sigma'])} = {_pct(d['bear']['eps_growth'])}")
+    tg = d["pe_targets"]
+    book.add(f"P/E cuối kỳ ({ss.label}): cơ sở {F.times(d['base']['exit_pe'])}, tích cực {F.times(d['bull']['exit_pe'])}, "
+             f"tiêu cực {F.times(d['bear']['exit_pe'])} - định giá hội tụ dần từ P/E hiện tại về P/E đích.", "scenario",
+             metrics=[("P/E hiện tại", F.times(d["cur_pe"])), (d["ref_src"], F.times(d["hist_avg"])),
+                      ("P/E đích: cơ sở / tích cực / tiêu cực", f"{F.times(tg['base'])} / {F.times(tg['bull'])} / {F.times(tg['bear'])}"),
+                      (f"Tỷ lệ hội tụ sau {ss.label}", _pct(d["converge"], 0))],
              period=px_period, source=f"{src_px}; {src_fin}",
-             formula="Cơ sở = (P/E hiện tại + tham chiếu)/2; Tích cực = 1,1 × max; Tiêu cực = 0,9 × min",
-             calc=f"({F.num(d['cur_pe'], 1)} + {F.num(d['hist_avg'], 1)})/2 = {F.num((d['cur_pe'] + d['hist_avg']) / 2, 1)}")
+             formula=f"P/E cuối kỳ = P/E hiện tại + (1 − 0,5^(T/2)) × (P/E đích − P/E hiện tại), T = số năm nắm giữ. Đích: cơ sở = {d['ref_src']}; "
+                     f"tích cực = {F.num(d['risk']['bull_pe'], 2)} × mức cao hơn; tiêu cực = {F.num(d['risk']['bear_pe'], 2)} × mức thấp hơn",
+             calc=f"Cơ sở: {F.num(d['cur_pe'], 1)} + {F.num(d['converge'], 2)} × ({F.num(tg['base'], 1)} − {F.num(d['cur_pe'], 1)}) = {F.num(d['base']['exit_pe'], 1)}")
     if d.get("eps_note"):
         book.add(f"EPS cơ sở cho mô hình kịch bản: {F.num(ss.eps0)}đ (chuẩn hoá).", "scenario",
                  source=src_fin, formula=d["eps_note"], calc=f"EPS chuẩn hoá = {F.num(ss.eps0)}đ", tone=-1)
-    book.add(f"Tỷ lệ chi trả cổ tức mặc định {_pct(d['payout'])}; xác suất 25% / 50% / 25%.", "scenario",
+    pr = d["risk"]["prob"]
+    book.add(f"Tỷ lệ chi trả cổ tức mặc định {_pct(d['payout'])}; xác suất {pr[0]:.0%} / {pr[1]:.0%} / {pr[2]:.0%} theo khẩu vị {RISK_LABEL[r.user.risk].lower()}.", "scenario",
              metrics=[("Cổ tức tiền mặt đã trả FY" + str(fy), F.bil(f["dividends_paid"]) + " tỷ")], period=f"FY{fy - 2} - FY{fy}",
              source=src_fin, formula="Payout = |Cổ tức đã trả| / LNST CĐ mẹ, bình quân 3 năm", calc=_pct(d["payout"]))
     changes = []
@@ -361,8 +370,9 @@ def build_evidence(r: AnalysisResult) -> EvidenceBook:
         if abs(sc_.probability - dd["probability"] / tot) > 1e-6:
             changes.append((f"{sc_.name}: xác suất", f"{_pct(dd['probability'] / tot, 0)} thành {_pct(sc_.probability, 0)}"))
     if changes or ss.years != scn.default_years(r.user.horizon):
-        book.add(f"Người dùng đã điều chỉnh {len(changes)} giả định" + (f", kỳ hạn {ss.years} năm" if ss.years != scn.default_years(r.user.horizon) else "")
-                 + " so với mặc định.", "scenario", metrics=changes, source="Thiết lập của người dùng",
+        book.add((f"Người dùng đã điều chỉnh {len(changes)} giả định so với mặc định" if changes else "Giả định mặc định")
+                 + (f"; kỳ hạn phân tích {ss.label}" if ss.years != scn.default_years(r.user.horizon) else "") + ".",
+                 "scenario", metrics=changes, source="Thiết lập của người dùng",
                  formula="Kết quả kịch bản được tính lại với giả định mới")
     book.add(f"Khuyến nghị {r.rating}: {r.rating_reason}.", "info",
              metrics=[("TSSL kỳ vọng/năm", _pct(ss.expected_annual, sign=True)), ("Lợi nhuận/rủi ro", F.num(ss.risk_reward, 2)),

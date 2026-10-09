@@ -32,7 +32,7 @@ def _layout(fig, h=360, title=None, legend=True):
 def scenario_fan(prices: pd.DataFrame, ss) -> go.Figure:
     d = prices.tail(250)
     t0, p0 = d["date"].iloc[-1], ss.price / 1000
-    t1 = t0 + pd.DateOffset(years=ss.years)
+    t1 = t0 + pd.DateOffset(months=int(round(ss.years * 12)))
     fig = go.Figure()
     fig.add_scatter(x=d["date"], y=d["close"], name="Giá lịch sử", line=dict(color=INK, width=1.6),
                     hovertemplate="%{x|%d/%m/%Y}: %{y:.2f}<extra></extra>")
@@ -50,7 +50,7 @@ def scenario_fan(prices: pd.DataFrame, ss) -> go.Figure:
     fig.add_hline(y=ss.expected_price / 1000, line=dict(color=ORANGE, dash="dot", width=1.4),
                   annotation_text=f"Kỳ vọng {_vn(ss.expected_price / 1000, 1)}", annotation_position="top left",
                   annotation_font_color=ORANGE)
-    fig.update_xaxes(range=[d["date"].iloc[0], t1 + pd.DateOffset(months=6 + 4 * ss.years)])
+    fig.update_xaxes(range=[d["date"].iloc[0], t1 + pd.DateOffset(months=int(6 + 4 * ss.years))])
     fig.update_yaxes(title="Nghìn đồng")
     return _layout(fig, 400)
 

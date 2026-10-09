@@ -331,7 +331,7 @@ def scenario_fan(prices: pd.DataFrame, ss, path: Path, ticker: str = "") -> Path
     fig, ax = plt.subplots(figsize=(7.2, 3.1))
     ax.plot(d["date"], d["close"], color=INK, lw=1.2, label="Giá lịch sử")
     t0, p0 = d["date"].iloc[-1], ss.price / 1000
-    t1 = t0 + pd.DateOffset(years=ss.years)
+    t1 = t0 + pd.DateOffset(months=int(round(ss.years * 12)))
     ys = [s.target_price / 1000 for s in ss.ordered()]
     ax.fill_between([t0, t1], [p0, p0], [p0, max(ys)], color=GREEN, alpha=0.06)
     ax.fill_between([t0, t1], [p0, p0], [p0, min(ys)], color=RED, alpha=0.06)
@@ -347,7 +347,7 @@ def scenario_fan(prices: pd.DataFrame, ss, path: Path, ticker: str = "") -> Path
     ax.set_xlim(d["date"].iloc[0], t1 + pd.DateOffset(months=int(3 * ss.years) + 2))
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%m/%y"))
     ax.set_ylabel("Nghìn đồng")
-    ax.set_title(f"Giá lịch sử và giá mục tiêu theo 3 kịch bản sau {ss.years} năm", loc="left")
+    ax.set_title(f"Giá lịch sử và giá mục tiêu theo 3 kịch bản sau {ss.label}", loc="left")
     _legend(fig, [ax], ncol=5)
     return _save(fig, path)
 
@@ -395,7 +395,7 @@ def sensitivity_heatmap(ss, path: Path) -> Path:
     pj = int(np.argmin(np.abs(m.columns.values - base.exit_pe)))
     ax.add_patch(plt.Rectangle((pj - 0.5, gi - 0.5), 1, 1, fill=False, ec=INK, lw=1.8))
     ax.grid(False)
-    ax.set_title(f"Ma trận độ nhạy tỷ suất sinh lời {ss.years} năm (ô viền đậm: kịch bản cơ sở)", loc="left")
+    ax.set_title(f"Ma trận độ nhạy tỷ suất sinh lời {ss.label} (ô viền đậm: kịch bản cơ sở)", loc="left")
     cb = plt.colorbar(im, ax=ax, pad=0.01, fraction=0.03)
     cb.ax.tick_params(labelsize=6.3, colors=INK2)
     cb.outline.set_edgecolor(RULE)

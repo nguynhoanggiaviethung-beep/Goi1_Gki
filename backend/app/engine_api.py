@@ -92,7 +92,7 @@ class AnalyzeRequest(BaseModel):
     ticker: str = Field(min_length=1, max_length=10)
     horizon: Literal["short", "medium", "long"] = "medium"
     risk: Literal["conservative", "balanced", "aggressive"] = "balanced"
-    years: int | None = Field(default=None, ge=1, le=10)
+    years: float | None = Field(default=None, ge=0.25, le=10, description="Kỳ hạn (năm): 0.25 = 3 tháng")
     overrides: dict[Literal["bull", "base", "bear"], Assumption] = Field(default_factory=dict)
     offline: bool = False
 
@@ -128,7 +128,7 @@ def _payload(res) -> dict:
         "rating": res.rating, "rating_reason": res.rating_reason, "rating_color": RATING_COLOR.get(res.rating, "#1E3A8A"),
         "warnings": res.warnings,
         "scen": {
-            "price": ss.price, "eps0": ss.eps0, "fy0": ss.fy0, "years": ss.years, "growth_years": ss.growth_years,
+            "price": ss.price, "eps0": ss.eps0, "fy0": ss.fy0, "years": ss.years, "label": ss.label, "growth_years": ss.growth_years,
             "current_pe": ss.current_pe, "expected_price": ss.expected_price, "expected_return": ss.expected_return,
             "expected_annual": ss.expected_annual, "risk_reward": ss.risk_reward, "prob_loss": ss.prob_loss,
             "items": [{"key": s.key, "name": s.name, "color": scn.SCEN_META[s.key]["color"], "tint": scn.SCEN_META[s.key]["tint"],
@@ -139,6 +139,9 @@ def _payload(res) -> dict:
             "sensitivity": {"growth": list(sens.index), "pe": list(sens.columns), "values": sens.values.tolist()},
         },
         "defaults": {k: {f: d[k][f] for f in ("eps_growth", "exit_pe", "probability", "payout")} for k in ("bull", "base", "bear")},
+        "model": {"pe_targets": d["pe_targets"], "converge": d["converge"], "current_pe": d["cur_pe"], "reference_pe": d["hist_avg"],
+                  "sigma": d["sigma"], "g_base": d["g_base"], "risk": d["risk"], "g_long_term": scn.G_LONG_TERM,
+                  "pe_half_life": scn.PE_HALF_LIFE},
         "default_years": scn.default_years(res.user.horizon),
         "prices": {c: (px[c].dt.strftime("%Y-%m-%d").tolist() if c == "date" else px[c].tolist()) for c in cols},
         "composite": res.composite,

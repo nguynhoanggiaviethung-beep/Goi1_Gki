@@ -9,8 +9,10 @@ minh bạch, người dùng chỉnh được:
     - Kỳ hạn đầu tư (năm) - dùng chung
 
 Mô hình (giá trị theo đồng/cổ phiếu):
-    EPS_cuối kỳ  = EPS_FY0 × Π(1 + g)               (số năm tăng trưởng = số BCTC năm sẽ công bố thêm đến cuối kỳ)
-    Giá mục tiêu = P/E mục tiêu × EPS_cuối kỳ
+    EPS_cuối kỳ  = EPS_FY0 × Π(1 + g_i)^Δt          (tăng theo thời gian nắm giữ; g năm đầu, hội tụ về 8% vào năm thứ 5)
+    P/E cuối kỳ  = P/E hiện tại + [1 − 0,5^(T/2)] × (P/E đích − P/E hiện tại)   (định giá hội tụ dần, bán rã 2 năm)
+    Giá mục tiêu = P/E cuối kỳ × EPS_cuối kỳ
+    Khẩu vị rủi ro quyết định độ "căng" của kịch bản (xác suất, độ sâu tiêu cực, độ cao tích cực).
     Cổ tức nhận  = Σ (payout × EPS_t)  trong kỳ hạn
     TSSL tổng    = (Giá mục tiêu + Cổ tức) / Giá hiện tại − 1
     TSSL/năm     = (1 + TSSL tổng)^(1/N) − 1
@@ -61,8 +63,8 @@ class ScenarioSet:
     price: float              # giá hiện tại (đồng)
     eps0: float               # EPS năm tài chính gần nhất (đồng, theo SLCP hiện tại)
     fy0: int
-    years: int                # kỳ hạn đầu tư (năm)
-    growth_years: int         # số năm EPS tăng trưởng đến cuối kỳ
+    years: float              # kỳ hạn đầu tư (năm; 0,25 = 3 tháng)
+    growth_years: float       # thời gian EPS tăng trưởng (= kỳ hạn)
     current_pe: float
     scenarios: dict           # key -> Scenario
     expected_price: float = np.nan
@@ -73,23 +75,54 @@ class ScenarioSet:
     sensitivity: pd.DataFrame | None = None
     defaults_info: dict = field(default_factory=dict)
 
+    @property
+    def label(self) -> str:
+        return horizon_text(self.years)
+
     def ordered(self):
         return [self.scenarios[k] for k in ("bull", "base", "bear")]
 
 
-def growth_years_for(fy0: int, years: int, today: datetime | None = None) -> int:
-    """Số BCTC năm mới sẽ được công bố đến cuối kỳ (BCTC năm Y coi như công bố từ 01/04 năm Y+1)."""
-    today = today or datetime.now()
-    end_year, end_month = today.year + years, today.month
-    last_fy_at_end = end_year - 1 if end_month >= 4 else end_year - 2
-    return max(1, last_fy_at_end - fy0)
+# --- Tham số mô hình -------------------------------------------------------------------------------
+PE_HALF_LIFE = 2.0     # P/E thu hẹp một nửa khoảng cách tới mức đích sau mỗi 2 năm (định giá hội tụ dần, không nhảy ngay)
+G_LONG_TERM = 0.08     # tăng trưởng EPS dài hạn danh nghĩa; tăng trưởng hội tụ tuyến tính về mức này trong 5 năm
+HORIZON_YEARS = {"short": 0.25, "medium": 1.0, "long": 3.0}
+HORIZON_CHOICES = (0.25, 0.5, 1.0, 2.0, 3.0, 5.0)
+# Khẩu vị rủi ro quyết định mức "căng" của kịch bản: xác suất, độ sâu kịch bản tiêu cực, độ cao kịch bản tích cực
+RISK_PRESET = {
+    "conservative": {"prob": (0.20, 0.50, 0.30), "bull_sigma": 0.75, "bear_sigma": 2.0, "bull_pe": 1.05, "bear_pe": 0.85},
+    "balanced":     {"prob": (0.25, 0.50, 0.25), "bull_sigma": 1.00, "bear_sigma": 1.5, "bull_pe": 1.10, "bear_pe": 0.90},
+    "aggressive":   {"prob": (0.30, 0.50, 0.20), "bull_sigma": 1.25, "bear_sigma": 1.0, "bull_pe": 1.15, "bear_pe": 0.95},
+}
 
 
-def default_assumptions(res) -> dict:
-    """Giả định mặc định suy ra từ dữ liệu - mọi con số đều có giải thích (rationale)."""
+def horizon_text(t: float) -> str:
+    """0.25 -> '3 tháng'; 1 -> '1 năm'; 3 -> '3 năm'."""
+    m = round(t * 12)
+    return f"{m} tháng" if m < 12 else f"{t:g} năm".replace(".", ",")
+
+
+def converge(t: float) -> float:
+    """Tỷ lệ khoảng cách P/E được thu hẹp sau t năm: 1 − 0,5^(t / chu kỳ bán rã)."""
+    return 1 - 0.5 ** (t / PE_HALF_LIFE)
+
+
+def growth_in_year(g0: float, i: int) -> float:
+    """Tăng trưởng năm thứ i+1: năm đầu = g0, sau đó hội tụ tuyến tính về G_LONG_TERM vào năm thứ 5."""
+    return g0 + (G_LONG_TERM - g0) * min(i, 4) / 4
+
+
+def default_years(horizon: str) -> float:
+    return HORIZON_YEARS.get(horizon, 1.0)
+
+
+def default_assumptions(res, years: float | None = None) -> dict:
+    """Giả định mặc định suy ra từ dữ liệu, theo kỳ hạn và khẩu vị rủi ro - mọi con số đều có giải thích."""
     v = res.val
     mm = v["multiples"]
     gd = v["growth_detail"]
+    t = float(years or default_years(res.user.horizon))
+    rk = RISK_PRESET.get(res.user.risk, RISK_PRESET["balanced"])
     npat = res.fin["npat_parent"].fillna(res.fin["npat"])
     yoy = npat.pct_change(fill_method=None)
     yoy[npat.shift(1) <= 0] = np.nan
@@ -106,38 +139,38 @@ def default_assumptions(res) -> dict:
     ref_src = "P/E bình quân 12 tháng" if pd.notna(hs.get("avg")) else "P/E thị trường điều chỉnh theo tăng trưởng"
     if pd.isna(cur_pe):
         cur_pe = hist_avg
-    pe_base = (cur_pe + hist_avg) / 2
-    pe_bull = 1.1 * max(cur_pe, hist_avg)
-    pe_bear = 0.9 * min(cur_pe, hist_avg)
+    k = converge(t)
+    tgt = {"base": hist_avg, "bull": rk["bull_pe"] * max(cur_pe, hist_avg), "bear": rk["bear_pe"] * min(cur_pe, hist_avg)}
+    pe = {key: cur_pe + k * (tgt[key] - cur_pe) for key in tgt}
     payout = gd.get("payout_3y")
     payout = float(np.clip(payout, 0, 1)) if pd.notna(payout) else 0.3
+    p_bull, p_base, p_bear = rk["prob"]
 
     return {
         "sigma": sigma, "sigma_raw": sigma_raw, "yoy": yoy, "g_base": g_base, "cur_pe": cur_pe, "hist_avg": hist_avg,
-        "ref_src": ref_src, "payout": payout,
-        "bull": {"eps_growth": g_base + sigma, "exit_pe": pe_bull, "payout": payout, "probability": 0.25},
-        "base": {"eps_growth": g_base, "exit_pe": pe_base, "payout": payout, "probability": 0.50},
-        "bear": {"eps_growth": g_base - 1.5 * sigma, "exit_pe": pe_bear, "payout": payout, "probability": 0.25},
+        "ref_src": ref_src, "payout": payout, "years": t, "converge": k, "pe_targets": tgt, "risk": rk,
+        "bull": {"eps_growth": g_base + rk["bull_sigma"] * sigma, "exit_pe": pe["bull"], "payout": payout, "probability": p_bull},
+        "base": {"eps_growth": g_base, "exit_pe": pe["base"], "payout": payout, "probability": p_base},
+        "bear": {"eps_growth": g_base - rk["bear_sigma"] * sigma, "exit_pe": pe["bear"], "payout": payout, "probability": p_bear},
     }
 
 
-def default_years(horizon: str) -> int:
-    return {"short": 1, "medium": 1, "long": 3}.get(horizon, 1)
-
-
-def _run_one(s: Scenario, eps0: float, price: float, years: int, gyears: int, roe: float, ke: float, vparams) -> Scenario:
+def _run_one(s: Scenario, eps0: float, price: float, years: float, roe: float, ke: float, vparams) -> Scenario:
+    """EPS tăng theo thời gian nắm giữ (năm lẻ tính theo tỷ lệ), tăng trưởng hội tụ dần về dài hạn;
+    cổ tức = tỷ lệ chi trả × EPS đang có × thời gian; giá cuối kỳ = P/E cuối kỳ × EPS cuối kỳ."""
     from .valuation import fcfe_dcf
 
-    eps = eps0
-    path = []
-    for _ in range(gyears):
-        eps *= 1 + s.eps_growth
+    eps, path, divs, left, i = eps0, [], 0.0, float(years), 0
+    while left > 1e-9:
+        dt = min(1.0, left)
+        divs += s.payout * eps * dt
+        eps *= (1 + growth_in_year(s.eps_growth, i)) ** dt
         path.append(eps)
+        left -= dt
+        i += 1
     s.eps_path = path
     s.target_price = s.exit_pe * path[-1]
-    # Cổ tức: mỗi năm trong kỳ hạn nhận payout × EPS năm gần nhất đã công bố (xấp xỉ)
-    pay_eps = [eps0] + path
-    s.dividends = float(sum(s.payout * pay_eps[min(i, len(pay_eps) - 1)] for i in range(years)))
+    s.dividends = float(divs)
     s.total_return = (s.target_price + s.dividends) / price - 1
     s.annual_return = (1 + s.total_return) ** (1 / years) - 1 if s.total_return > -1 else -1.0
     try:
@@ -147,15 +180,14 @@ def _run_one(s: Scenario, eps0: float, price: float, years: int, gyears: int, ro
     return s
 
 
-def build(res, overrides: dict | None = None, years: int | None = None) -> ScenarioSet:
+def build(res, overrides: dict | None = None, years: float | None = None) -> ScenarioSet:
     """Dựng bộ 3 kịch bản. overrides = {"bull": {"eps_growth": .., "exit_pe": .., "payout": .., "probability": ..}, ...}"""
-    d = default_assumptions(res)
+    years = float(years or default_years(res.user.horizon))
+    d = default_assumptions(res, years)
     v = res.val
     mm = v["multiples"]
     price, eps0 = float(mm["price"]), float(mm["eps"])
     fy0 = int(mm["fiscal_year"])
-    years = int(years or default_years(res.user.horizon))
-    gyears = growth_years_for(fy0, years, res.created_at)
     roe = v["growth_detail"]["roe_3y"]
     vparams = getattr(res, "vparams", None)
     if vparams is None:
@@ -168,7 +200,6 @@ def build(res, overrides: dict | None = None, years: int | None = None) -> Scena
         if overrides and k in overrides:
             a.update({kk: float(vv) for kk, vv in overrides[k].items() if vv is not None})
         scen[k] = Scenario(key=k, **a)
-    # chuẩn hoá xác suất
     tot = sum(s.probability for s in scen.values()) or 1.0
     for s in scen.values():
         s.probability = s.probability / tot
@@ -186,10 +217,10 @@ def build(res, overrides: dict | None = None, years: int | None = None) -> Scena
         if eps0 <= 0:
             raise ValueError("Không xác định được EPS chuẩn hoá dương cho mô hình kịch bản.")
     for s in scen.values():
-        _run_one(s, eps0, price, years, gyears, roe, v["ke"], vparams)
+        _run_one(s, eps0, price, years, roe, v["ke"], vparams)
 
     d["eps_note"] = eps_note
-    ss = ScenarioSet(price=price, eps0=eps0, fy0=fy0, years=years, growth_years=gyears, current_pe=d["cur_pe"],
+    ss = ScenarioSet(price=price, eps0=eps0, fy0=fy0, years=years, growth_years=years, current_pe=d["cur_pe"],
                      scenarios=scen, defaults_info=d)
     ss.expected_price = sum(s.probability * s.target_price for s in scen.values())
     ss.expected_return = sum(s.probability * s.total_return for s in scen.values())
@@ -198,19 +229,19 @@ def build(res, overrides: dict | None = None, years: int | None = None) -> Scena
     ss.risk_reward = up / abs(down) if down < 0 else np.inf
     ss.prob_loss = sum(s.probability for s in scen.values() if s.total_return < 0)
 
-    # Ma trận độ nhạy: tăng trưởng EPS × P/E mục tiêu -> TSSL tổng
+    # Ma trận độ nhạy: tăng trưởng EPS × P/E cuối kỳ -> TSSL tổng
     base = scen["base"]
     step = max(0.02, round((scen["bull"].eps_growth - scen["bear"].eps_growth) / 6, 3))
-    gs = base.eps_growth + np.arange(-3, 4) * step                    # lưới đối xứng quanh kịch bản cơ sở
+    gs = base.eps_growth + np.arange(-3, 4) * step
     pes = base.exit_pe * np.array([0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3])
     mat = {}
     for pe in pes:
         col = {}
         for g in gs:
-            s = _run_one(replace(base, eps_growth=g, exit_pe=pe), eps0, price, years, gyears, roe, v["ke"], vparams)
+            s = _run_one(replace(base, eps_growth=g, exit_pe=pe), eps0, price, years, roe, v["ke"], vparams)
             col[round(g, 4)] = s.total_return
         mat[round(pe, 2)] = col
-    ss.sensitivity = pd.DataFrame(mat)  # index = g, columns = P/E
+    ss.sensitivity = pd.DataFrame(mat)
     return ss
 
 

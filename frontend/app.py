@@ -203,8 +203,21 @@ ticker = st.selectbox("Mã cổ phiếu", TK, index=TK.index("FPT") if "FPT" in 
                       placeholder="Nhập mã cổ phiếu, ví dụ FPT, HPG, VCB")
 
 
+YEAR_CHOICES = [0.25, 0.5, 1.0, 2.0, 3.0, 5.0]
+
+
+def horizon_text(t: float) -> str:
+    m = round(t * 12)
+    return f"{m} tháng" if m < 12 else f"{t:g} năm"
+
+
+def years_key() -> str:
+    return f"{ticker}_{horizon}_years"
+
+
 def sk(k, f):
-    return f"{ticker}_{horizon}_{k}_{f}"
+    """Khoá thanh trượt gắn với mã, kỳ hạn, khẩu vị và số năm: đổi một trong các yếu tố này thì giả định mặc định tính lại."""
+    return f"{ticker}_{horizon}_{risk}_{st.session_state.get(years_key())}_{k}_{f}"
 
 
 def slider_defaults(d: dict) -> dict:
@@ -233,12 +246,11 @@ R = DEF = None
 if page not in ("Biểu đồ so sánh", "Sàng lọc cơ hội", "Báo cáo và tin doanh nghiệp"):
     with st.spinner(f"Đang tải dữ liệu và phân tích {ticker}..."):
         try:
-            base_res = get_analysis(json.dumps(analysis_body(), sort_keys=True))
+            years = st.session_state.get(years_key())
+            base_res = get_analysis(json.dumps(analysis_body(years=years), sort_keys=True))
             DEF = base_res["defaults"]
-            years = st.session_state.get(sk("all", "years")) or base_res["default_years"]
             ov = scenario_inputs(DEF)
-            R = base_res if (not ov and years == base_res["scen"]["years"]) else \
-                get_analysis(json.dumps(analysis_body(overrides=ov, years=years), sort_keys=True))
+            R = base_res if not ov else get_analysis(json.dumps(analysis_body(overrides=ov, years=years), sort_keys=True))
         except RuntimeError as e:
             st.error(f"Không phân tích được {ticker}: {e}")
             st.caption("Kiểm tra kết nối Internet (cần để tải giá), hoặc bật chế độ offline và chọn FPT.")
@@ -277,16 +289,16 @@ def compare_table(ss: dict) -> str:
         return f"<span style='color:{sign_color(x)}'>{text}</span>"
 
     body = ["<tr class='grp'><td colspan='4'>Giả định</td></tr>",
-            row("Tăng trưởng EPS mỗi năm", [pct(s["eps_growth"]) for s in items]),
+            row("Tăng trưởng EPS năm đầu", [pct(s["eps_growth"]) for s in items]),
             row("P/E mục tiêu cuối kỳ", [times(s["exit_pe"]) for s in items]),
             row("Tỷ lệ chi trả cổ tức", [pct(s["payout"]) for s in items]),
             row("Xác suất", [pct(s["probability"], 0) for s in items]),
-            f"<tr class='grp'><td colspan='4'>Kết quả sau {ss['years']} năm</td></tr>",
-            row(f"EPS FY{ss['fy0'] + ss['growth_years']} (đ)", [num(s["eps_end"]) for s in items]),
+            f"<tr class='grp'><td colspan='4'>Kết quả sau {ss['label']}</td></tr>",
+            row("EPS cuối kỳ (đ)", [num(s["eps_end"]) for s in items]),
             row("Giá mục tiêu (đ)", [num(s["target_price"]) for s in items], "key"),
             row("Cổ tức nhận trong kỳ (đ)", [num(s["dividends"]) for s in items]),
             row("Tỷ suất sinh lời tổng", [colored(s["total_return"], pct(s["total_return"], 1, sign=True)) for s in items], "key"),
-            row("Tỷ suất sinh lời mỗi năm", [colored(s["annual_return"], pct(s["annual_return"], 1, sign=True)) for s in items]),
+            row("Tỷ suất sinh lời quy đổi năm", [colored(s["annual_return"], pct(s["annual_return"], 1, sign=True)) for s in items]),
             row("Đối chiếu DCF cùng tăng trưởng (đ)", [num(s["dcf_value"]) for s in items])]
     return f"<table class='cmp'><tr><th>Chỉ tiêu</th>{head}</tr>{''.join(body)}</table>"
 
@@ -302,9 +314,9 @@ if page == "Kịch bản đầu tư":
     rr = ss["risk_reward"]
     rr_txt = "> 10" if (rr is None or rr > 10) else num(rr, 2)
     kpi(c[0], "Giá trị kỳ vọng", f"{num(ss['expected_price'])} đ", "Bình quân gia quyền theo xác suất", NEU)
-    kpi(c[1], f"Sinh lời kỳ vọng {ss['years']} năm", pct(ss["expected_return"], 1, sign=True), "Gồm cổ tức tiền mặt",
+    kpi(c[1], f"Sinh lời kỳ vọng {ss['label']}", pct(ss["expected_return"], 1, sign=True), "Gồm cổ tức tiền mặt",
         sign_color(ss["expected_return"]))
-    kpi(c[2], "Sinh lời kỳ vọng mỗi năm", pct(ss["expected_annual"], 1, sign=True), "Căn cứ đưa ra khuyến nghị",
+    kpi(c[2], "Sinh lời kỳ vọng quy đổi năm", pct(ss["expected_annual"], 1, sign=True), "Căn cứ đưa ra khuyến nghị",
         sign_color(ss["expected_annual"]))
     kpi(c[3], "Lợi nhuận / rủi ro", f"{rr_txt} lần", "Tích cực so với tiêu cực", NEU)
     kpi(c[4], "Xác suất thua lỗ", pct(ss["prob_loss"], 0), f"Khoảng giá {num(S['bear']['target_price'])} - "
@@ -321,8 +333,8 @@ if page == "Kịch bản đầu tư":
     with right:
         with st.container(border=True):
             sec("Điều chỉnh giả định")
-            st.segmented_control("Kỳ hạn đầu tư", [1, 2, 3, 5], default=ss["years"], key=sk("all", "years"),
-                                 format_func=lambda y: f"{y} năm")
+            st.segmented_control("Kỳ hạn đầu tư", YEAR_CHOICES, default=ss["years"], key=years_key(),
+                                 format_func=horizon_text)
             if st.button("Khôi phục giả định mặc định"):
                 for k in list(st.session_state):
                     if k.startswith(f"{ticker}_{horizon}_"):
@@ -331,8 +343,8 @@ if page == "Kịch bản đầu tư":
             hc = st.columns(3)
             for col, k in zip(hc, KEYS):
                 col.markdown(f"<div class='colhead' style='background:{SC[k][0]}'>{SC_NAME[k]}</div>", unsafe_allow_html=True)
-            for label, f, lo, hi, step in (("Tăng trưởng EPS (%/năm)", "g", -30.0, 60.0, 0.1),
-                                           ("P/E mục tiêu (lần)", "pe", 3.0, 40.0, 0.1),
+            for label, f, lo, hi, step in (("Tăng trưởng EPS năm đầu (%)", "g", -30.0, 60.0, 0.1),
+                                           ("P/E cuối kỳ (lần)", "pe", 3.0, 40.0, 0.1),
                                            ("Xác suất (%)", "p", 0, 100, 5),
                                            ("Tỷ lệ chi trả cổ tức (%)", "pay", 0, 100, 1)):
                 st.markdown(f"<div class='muted' style='margin-top:6px'><b>{label}</b></div>", unsafe_allow_html=True)
@@ -341,8 +353,12 @@ if page == "Kịch bản đầu tư":
                     v = min(max(SD[k][f], lo), hi)
                     col.slider(f"{label} - {k}", lo, hi, v, step, key=sk(k, f), label_visibility="collapsed",
                                format="%.1f" if isinstance(step, float) else "%d")
-            st.markdown("<div class='muted'>Bảng bên trái và các biểu đồ bên dưới được tính lại ngay khi kéo thanh trượt. "
-                        "Xác suất được tự chuẩn hoá về tổng 100%.</div>", unsafe_allow_html=True)
+            M = R["model"]
+            st.markdown(f"<div class='muted'>Giả định mặc định thay đổi theo <b>kỳ hạn</b> và <b>khẩu vị rủi ro</b> ở thanh bên. "
+                        f"Khẩu vị {OPT['risk'][risk].lower()}: xác suất {M['risk']['prob'][0]:.0%} / {M['risk']['prob'][1]:.0%} / "
+                        f"{M['risk']['prob'][2]:.0%}, tích cực +{num(M['risk']['bull_sigma'], 2)}σ, tiêu cực −{num(M['risk']['bear_sigma'], 2)}σ "
+                        f"(σ = {pct(M['sigma'])}). Sau {ss['label']}, P/E thu hẹp {pct(M['converge'], 0)} khoảng cách từ P/E hiện tại "
+                        f"{times(M['current_pe'])} tới P/E đích. Xác suất được tự chuẩn hoá về tổng 100%.</div>", unsafe_allow_html=True)
 
     with st.container(border=True):
         sec("Biểu đồ kịch bản")
@@ -536,7 +552,7 @@ elif page == "Xuất báo cáo PDF":
         yrs = c5.slider("Số năm tài chính hiển thị", 3, 10, int(base["years"]), key=f"yr_{purpose}")
     with st.container(border=True):
         sec("Bước 3 - Tạo và tải báo cáo")
-        st.caption(f"Báo cáo dùng đúng giả định kịch bản hiện tại: kỳ hạn {ss['years']} năm, "
+        st.caption(f"Báo cáo dùng đúng giả định kịch bản hiện tại: kỳ hạn {ss['label']}, "
                    f"giá trị kỳ vọng {num(ss['expected_price'])} đ.")
         if st.button("Tạo báo cáo PDF", type="primary"):
             body = analysis_body(overrides=scenario_inputs(DEF), years=ss["years"],
