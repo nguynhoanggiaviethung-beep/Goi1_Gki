@@ -388,7 +388,7 @@ class ReportBuilder:
                 ["Cổ tức nhận trong kỳ (đ)"] + [num(s.dividends) for s in S],
                 [f"Sinh lời tổng ({ss.label})"] + [f"<b>{sgn(s.total_return)}</b>" for s in S],
                 ["Sinh lời quy đổi năm"] + [sgn(s.annual_return) for s in S],
-                ["Đối chiếu DCF với cùng tăng trưởng (đ)"] + [num(s.dcf_value) for s in S]]
+                ["Giá trị nội tại hôm nay - DCF (đ)"] + [num(s.dcf_value) for s in S]]
         tbl = _table(rows, [CONTENT_W * 0.37] + [CONTENT_W * 0.21] * 3, highlight_rows=[1, 6])
         tbl.setStyle(TableStyle([("BACKGROUND", (i + 1, 0), (i + 1, 0), colors.HexColor(SCEN_HEX[s.key])) for i, s in enumerate(S)]
                                 + [("BACKGROUND", (i + 1, 7), (i + 1, -1), colors.HexColor(SCEN_TINT[s.key])) for i, s in enumerate(S)]

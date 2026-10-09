@@ -336,7 +336,7 @@ def build_evidence(r: AnalysisResult) -> EvidenceBook:
              calc=f"median({_pct(gd['g_npat_3y'])}, {_pct(gd['g_rev_3y'])}, {_pct(gd['g_sustainable'])}) = {_pct(d['g_base'])}")
     rk = d["risk"]
     book.add(f"Biên độ tăng trưởng: σ = {_pct(d['sigma'])}; tích cực +{F.num(rk['bull_sigma'], 2)}σ, tiêu cực −{F.num(rk['bear_sigma'], 2)}σ "
-             f"(khẩu vị {RISK_LABEL[r.user.risk].lower()}). Tăng trưởng hội tụ dần về {_pct(scn.G_LONG_TERM, 0)} vào năm thứ 5.", "scenario",
+             f"(khẩu vị {RISK_LABEL[r.user.risk].lower()}). Tăng trưởng giảm dần về mức dài hạn vào năm thứ 5 (tích cực {_pct(scn.LONG_TERM_ANCHOR["bull"], 0)}, cơ sở {_pct(scn.LONG_TERM_ANCHOR["base"], 0)}, tiêu cực {_pct(scn.LONG_TERM_ANCHOR["bear"], 0)}).", "scenario",
              metrics=[(f"Tăng trưởng LNST năm", " ; ".join(_pct(x) for x in d["yoy"]))] + [("Độ lệch chuẩn thực tế", _pct(d["sigma_raw"]))],
              period="5 năm gần nhất", source=src_fin,
              formula="σ = độ lệch chuẩn tăng trưởng LNST hằng năm, chặn [8%; 20%]; khẩu vị thận trọng đào sâu kịch bản tiêu cực hơn",

@@ -284,6 +284,21 @@ if R is not None:
         st.caption(f"Lưu ý: {w}")
 
 
+def _cagr(end, start, years):
+    try:
+        return (float(end) / float(start)) ** (1 / float(years)) - 1
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
+def _resid(s: dict, ss: dict):
+    """Phần sinh lời mỗi năm không đến từ tăng EPS và thay đổi P/E: chủ yếu là cổ tức."""
+    eg, pc = _cagr(s["eps_end"], ss["eps0"], ss["years"]), _cagr(s["exit_pe"], ss["current_pe"], ss["years"])
+    if eg is None or pc is None or s["annual_return"] is None:
+        return None
+    return s["annual_return"] - ((1 + eg) * (1 + pc) - 1)
+
+
 def compare_table(ss: dict) -> str:
     items = ss["items"]
     head = "".join(f"<th style='background:{SC[s['key']][0]}'>{s['name'].upper()}</th>" for s in items)
@@ -307,7 +322,12 @@ def compare_table(ss: dict) -> str:
             row("Cổ tức nhận trong kỳ (đ)", [num(s["dividends"]) for s in items]),
             row("Tỷ suất sinh lời tổng", [colored(s["total_return"], pct(s["total_return"], 1, sign=True)) for s in items], "key"),
             row("Tỷ suất sinh lời quy đổi năm", [colored(s["annual_return"], pct(s["annual_return"], 1, sign=True)) for s in items]),
-            row("Đối chiếu DCF cùng tăng trưởng (đ)", [num(s["dcf_value"]) for s in items])]
+            f"<tr class='grp'><td colspan='4'>Sinh lời mỗi năm đến từ đâu</td></tr>",
+            row("Lợi nhuận (EPS) tăng mỗi năm", [pct(_cagr(s["eps_end"], ss["eps0"], ss["years"]), 1, sign=True) for s in items]),
+            row("Định giá (P/E) thay đổi mỗi năm", [colored(_cagr(s["exit_pe"], ss["current_pe"], ss["years"]),
+                                                            pct(_cagr(s["exit_pe"], ss["current_pe"], ss["years"]), 1, sign=True)) for s in items]),
+            row("Cổ tức và phần còn lại mỗi năm", [pct(_resid(s, ss), 1, sign=True) for s in items]),
+            row("Giá trị nội tại hôm nay - DCF (đ, tham khảo)", [num(s["dcf_value"]) for s in items])]
     return f"<table class='cmp'><tr><th>Chỉ tiêu</th>{head}</tr>{''.join(body)}</table>"
 
 
@@ -320,15 +340,16 @@ if page == "Kịch bản đầu tư":
     SD = slider_defaults(DEF)
     c = st.columns(5)
     rr = ss["risk_reward"]
-    rr_txt = "> 10" if (rr is None or rr > 10) else num(rr, 2)
+    rr_txt = "Không lỗ" if rr is None else ("> 10 lần" if rr > 10 else f"{num(rr, 2)} lần")
     kpi(c[0], "Giá trị kỳ vọng", f"{num(ss['expected_price'])} đ", "Bình quân gia quyền theo xác suất", NEU)
     kpi(c[1], f"Sinh lời kỳ vọng {ss['label']}", pct(ss["expected_return"], 1, sign=True), "Gồm cổ tức tiền mặt",
         sign_color(ss["expected_return"]))
     kpi(c[2], "Sinh lời kỳ vọng quy đổi năm", pct(ss["expected_annual"], 1, sign=True), "Căn cứ đưa ra khuyến nghị",
         sign_color(ss["expected_annual"]))
-    kpi(c[3], "Lợi nhuận / rủi ro", f"{rr_txt} lần", "Tích cực so với tiêu cực", NEU)
-    kpi(c[4], "Xác suất thua lỗ", pct(ss["prob_loss"], 0), f"Khoảng giá {num(S['bear']['target_price'])} - "
-                                                         f"{num(S['bull']['target_price'])}", NEG if ss["prob_loss"] > 0 else POS)
+    kpi(c[3], "Lợi nhuận / rủi ro", rr_txt, "Tích cực so với tiêu cực" if rr is not None else "Kịch bản tiêu cực vẫn có lãi", NEU)
+    kpi(c[4], "Kịch bản tiêu cực", pct(S["bear"]["total_return"], 1, sign=True),
+        f"Xác suất thua lỗ {pct(ss['prob_loss'], 0)} | khoảng giá {num(S['bear']['target_price'])} - {num(S['bull']['target_price'])}",
+        sign_color(S["bear"]["total_return"]))
     st.write("")
 
     left, right = st.columns([11, 9])

@@ -144,7 +144,7 @@ def _scenario_cards(res, s, ss, frac, src_fin, src_px, px_date, user_set: set) -
                     "npat_growth_history_pct": [_f(x * 100, 2) for x in d["yoy"]]},
          "source": src_fin, "period": f"FY{fy0 - 3}-FY{fy0}", "retrieved_at": retrieved},
         {"claim": f"EPS cuối kỳ ({ss.label})", "value": _f(eps_end, 2), "unit": "đồng/cổ phiếu",
-         "formula": f"{F.num(ss.eps0)} × (1 + {F.pct(s.eps_growth)})^{F.num(n, 2)} = {F.num(eps_end)}" + (" (tăng trưởng hội tụ về 8% từ năm thứ 2)" if n > 1 else ""),
+         "formula": f"{F.num(ss.eps0)} × (1 + {F.pct(s.eps_growth)})^{F.num(n, 2)} = {F.num(eps_end)}" + (" (từ năm thứ 2 tăng trưởng giảm dần về mức dài hạn của kịch bản)" if n > 1 else ""),
          "inputs": {"eps0": _f(ss.eps0, 2), "growth_pct": _f(s.eps_growth * 100, 2), "growth_years": n},
          "source": "Mô hình kịch bản VNEquity", "period": f"{ss.label} kể từ hiện tại", "retrieved_at": retrieved},
         {"claim": "P/E mục tiêu", "value": _f(s.exit_pe, 2), "unit": "lần", "formula": pe_formula,

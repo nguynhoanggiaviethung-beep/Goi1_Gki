@@ -140,7 +140,7 @@ def _payload(res) -> dict:
         },
         "defaults": {k: {f: d[k][f] for f in ("eps_growth", "exit_pe", "probability", "payout")} for k in ("bull", "base", "bear")},
         "model": {"pe_targets": d["pe_targets"], "converge": d["converge"], "current_pe": d["cur_pe"], "reference_pe": d["hist_avg"],
-                  "sigma": d["sigma"], "g_base": d["g_base"], "risk": d["risk"], "g_long_term": scn.G_LONG_TERM,
+                  "sigma": d["sigma"], "g_base": d["g_base"], "risk": d["risk"], "g_long_term": scn.LONG_TERM_ANCHOR,
                   "pe_half_life": scn.PE_HALF_LIFE},
         "default_years": scn.default_years(res.user.horizon),
         "prices": {c: (px[c].dt.strftime("%Y-%m-%d").tolist() if c == "date" else px[c].tolist()) for c in cols},

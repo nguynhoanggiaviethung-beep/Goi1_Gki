@@ -9,7 +9,7 @@ minh bạch, người dùng chỉnh được:
     - Kỳ hạn đầu tư (năm) - dùng chung
 
 Mô hình (giá trị theo đồng/cổ phiếu):
-    EPS_cuối kỳ  = EPS_FY0 × Π(1 + g_i)^Δt          (tăng theo thời gian nắm giữ; g năm đầu, hội tụ về 8% vào năm thứ 5)
+    EPS_cuối kỳ  = EPS_FY0 × Π(1 + g_i)^Δt          (tăng theo thời gian nắm giữ; g năm đầu, giảm dần về mức dài hạn của kịch bản vào năm thứ 5)
     P/E cuối kỳ  = P/E hiện tại + [1 − 0,5^(T/2)] × (P/E đích − P/E hiện tại)   (định giá hội tụ dần, bán rã 2 năm)
     Giá mục tiêu = P/E cuối kỳ × EPS_cuối kỳ
     Khẩu vị rủi ro quyết định độ "căng" của kịch bản (xác suất, độ sâu tiêu cực, độ cao tích cực).
@@ -85,7 +85,11 @@ class ScenarioSet:
 
 # --- Tham số mô hình -------------------------------------------------------------------------------
 PE_HALF_LIFE = 2.0     # P/E thu hẹp một nửa khoảng cách tới mức đích sau mỗi 2 năm (định giá hội tụ dần, không nhảy ngay)
-G_LONG_TERM = 0.08     # tăng trưởng EPS dài hạn danh nghĩa; tăng trưởng hội tụ tuyến tính về mức này trong 5 năm
+G_LONG_TERM = 0.07     # tăng trưởng EPS dài hạn danh nghĩa của kịch bản cơ sở (≈ tăng trưởng GDP danh nghĩa dài hạn)
+# Tăng trưởng cao không kéo dài mãi: giảm tuyến tính về mức dài hạn của từng kịch bản vào năm thứ 5.
+# Chỉ giảm, không kéo tăng trưởng thấp đi lên (kịch bản tiêu cực không được "cứu" bởi giả định hội tụ).
+LONG_TERM_ANCHOR = {"bull": 0.10, "base": G_LONG_TERM, "bear": 0.0}
+MARKET_PE = 13.0      # P/E bình quân dài hạn của thị trường cổ phiếu Việt Nam (VN-Index, xấp xỉ)
 HORIZON_YEARS = {"short": 0.25, "medium": 1.0, "long": 3.0}
 HORIZON_CHOICES = (0.25, 0.5, 1.0, 2.0, 3.0, 5.0)
 # Khẩu vị rủi ro quyết định mức "căng" của kịch bản: xác suất, độ sâu kịch bản tiêu cực, độ cao kịch bản tích cực
@@ -107,9 +111,11 @@ def converge(t: float) -> float:
     return 1 - 0.5 ** (t / PE_HALF_LIFE)
 
 
-def growth_in_year(g0: float, i: int) -> float:
-    """Tăng trưởng năm thứ i+1: năm đầu = g0, sau đó hội tụ tuyến tính về G_LONG_TERM vào năm thứ 5."""
-    return g0 + (G_LONG_TERM - g0) * min(i, 4) / 4
+def growth_in_year(g0: float, i: int, key: str = "base") -> float:
+    """Tăng trưởng năm thứ i+1: năm đầu = g0, sau đó giảm tuyến tính về mức dài hạn của kịch bản vào năm thứ 5
+    (nếu g0 đã thấp hơn mức dài hạn thì giữ nguyên g0)."""
+    target = min(LONG_TERM_ANCHOR.get(key, G_LONG_TERM), g0)
+    return g0 + (target - g0) * min(i, 4) / 4
 
 
 def default_years(horizon: str) -> float:
@@ -137,6 +143,12 @@ def default_assumptions(res, years: float | None = None) -> dict:
     if pd.isna(hist_avg):
         hist_avg = 13.0
     ref_src = "P/E bình quân 12 tháng" if pd.notna(hs.get("avg")) else "P/E thị trường điều chỉnh theo tăng trưởng"
+    # P/E tham chiếu = bình quân (P/E 12 tháng của cổ phiếu, P/E bình quân thị trường): tránh lấy một năm định giá
+    # bất thường (quá cao/thấp) của riêng cổ phiếu làm đích dài hạn.
+    stock_pe = float(hist_avg)
+    hist_avg = (stock_pe + MARKET_PE) / 2
+    ref_src = (f"P/E tham chiếu = trung bình ({ref_src} của cổ phiếu {stock_pe:.1f}; P/E thị trường {MARKET_PE:.0f})"
+               .replace(".", ","))
     if pd.isna(cur_pe):
         cur_pe = hist_avg
     k = converge(t)
@@ -148,6 +160,7 @@ def default_assumptions(res, years: float | None = None) -> dict:
 
     return {
         "sigma": sigma, "sigma_raw": sigma_raw, "yoy": yoy, "g_base": g_base, "cur_pe": cur_pe, "hist_avg": hist_avg,
+        "stock_pe_12m": stock_pe, "market_pe": MARKET_PE,
         "ref_src": ref_src, "payout": payout, "years": t, "converge": k, "pe_targets": tgt, "risk": rk,
         "bull": {"eps_growth": g_base + rk["bull_sigma"] * sigma, "exit_pe": pe["bull"], "payout": payout, "probability": p_bull},
         "base": {"eps_growth": g_base, "exit_pe": pe["base"], "payout": payout, "probability": p_base},
@@ -164,7 +177,7 @@ def _run_one(s: Scenario, eps0: float, price: float, years: float, roe: float, k
     while left > 1e-9:
         dt = min(1.0, left)
         divs += s.payout * eps * dt
-        eps *= (1 + growth_in_year(s.eps_growth, i)) ** dt
+        eps *= (1 + growth_in_year(s.eps_growth, i, s.key)) ** dt
         path.append(eps)
         left -= dt
         i += 1
