@@ -46,10 +46,7 @@ MAX_REPORT_BYTES = 100 * 1024 * 1024
 REPORT_INDEX: list[dict[str, str]] = []
 REPORT_INDEX_TIME = 0.0
 SESSION = requests.Session()
-SESSION.headers.update({
-    "User-Agent": "Mozilla/5.0 (compatible; VietScope/0.1; student research project)",
-    "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
-})
+SESSION.headers.update({"User-Agent": "VietScope/0.1 (student research project; report lookup)"})
 
 
 def _report_index(force: bool = False) -> list[dict[str, str]]:
@@ -361,102 +358,68 @@ def _get_public_page(url: str):
 
 @router.get("/news/company/{ticker}")
 def company_news(ticker: str, company_name: str = Query(default="", max_length=120), company_website: str = Query(default="", max_length=500), limit: int = Query(default=30, ge=1, le=100)):
+    """Tin doanh nghiệp theo mã.
+
+    1. CafeF - danh sách tin theo đúng mã (công bố thông tin + bài viết gắn mã).
+    2. RSS CafeF, VnExpress, VietnamNet, Tin Nhanh Chứng Khoán, VnEconomy - chỉ giữ tin có TIÊU ĐỀ nhắc mã CK viết hoa
+       đứng riêng hoặc nguyên cụm tên doanh nghiệp (không khớp từ đơn lẻ, không khớp tên doanh nghiệp niêm yết khác).
+    3. Website doanh nghiệp (tuỳ chọn) - chỉ liên kết cùng domain.
+    Liên kết được kiểm tra là URL tuyệt đối thuộc đúng domain nguồn; loại trùng; sắp xếp theo thời gian đăng thật.
+    """
+    from backend.vnequity.data.company import get_profile
+    from backend.vnequity.data.news import clean_url, collect_company_news, mentions, parse_date
+
     symbol = ticker.strip().upper()
     if not re.fullmatch(r"[A-Z0-9]{2,10}", symbol): raise HTTPException(status_code=422, detail="Mã cổ phiếu không hợp lệ.")
-    terms = [symbol.casefold()]
-    generic_name_words = {"công", "ty", "cổ", "phần", "ctcp", "jsc", "joint", "stock", "company", "group", "tập", "đoàn"}
-    if company_name.strip():
-        terms.extend(word.casefold() for word in re.findall(r"[^\W_]+", company_name) if len(word) > 2 and word.casefold() not in generic_name_words)
-    # CafeF has a ticker-specific endpoint; use it so company news still works
-    # when general-market RSS headlines omit the ticker symbol.
-    results, sources = [], {}
-    cafef_url = f"https://cafef.vn/du-lieu/tin-doanh-nghiep/{symbol.lower()}/event.chn"
-    try:
-        response = SESSION.get(cafef_url, timeout=(5, 12))
-        response.raise_for_status()
-        parser = _LinksParser()
-        parser.feed(response.content.decode(response.encoding or "utf-8", errors="replace"))
-        seen_links = set()
-        for entry in parser.links:
-            title = html.unescape(re.sub(r"\s+", " ", entry["text"])).strip()
-            link = urljoin(cafef_url, entry["href"])
-            if (len(title) < 12 or not link.startswith("https://cafef.vn/") or
-                    not urlparse(link).path.lower().endswith(".chn") or link in seen_links):
-                continue
-            # The endpoint is already scoped to the ticker, so do not require
-            # the ticker to occur again in each article headline.
-            seen_links.add(link)
-            results.append({"ticker": symbol, "source": "CafeF", "title": title, "summary": "", "url": link,
-                            "published_at": None, "source_feed": cafef_url})
-        sources["CafeF"] = {"status": "ok", "matches": len(seen_links), "feed": cafef_url}
-    except Exception as exc:
-        sources["CafeF"] = {"status": "unavailable", "matches": 0, "feed": cafef_url, "error": str(exc)[:220]}
-
-    for source, url in NEWS_FEEDS.items():
-        try:
-            response = SESSION.get(url, timeout=(5, 12))
-            response.raise_for_status()
-            root = ET.fromstring(response.content)
-            # RSS feeds may use XML namespaces (including content:encoded),
-            # so match elements by local name instead of assuming bare tags.
-            candidates = [node for node in root.iter() if node.tag.rsplit("}", 1)[-1].split(":")[-1].lower() in {"item", "entry"}]
-            matched = 0
-            for item in candidates:
-                fields = {node.tag.rsplit("}", 1)[-1].split(":")[-1].lower(): node for node in list(item)}
-                title_node = fields.get("title")
-                desc_node = fields.get("description") or fields.get("summary") or fields.get("encoded")
-                title = ("".join(title_node.itertext()) if title_node is not None else "").strip()
-                description = ("".join(desc_node.itertext()) if desc_node is not None else "").strip()
-                link_node = fields.get("link")
-                link = (link_node.attrib.get("href", "") if link_node is not None else "") or ("".join(link_node.itertext()).strip() if link_node is not None else "")
-                if not link:
-                    link_node = item.find("{http://www.w3.org/2005/Atom}link")
-                    link = link_node.attrib.get("href", "") if link_node is not None else ""
-                haystack = f"{title} {description}".casefold()
-                # Avoid accidental substring hits (e.g. a short ticker inside
-                # an unrelated word), while still allowing punctuation around it.
-                ticker_match = re.search(rf"(?<![a-z0-9]){re.escape(symbol.casefold())}(?![a-z0-9])", haystack)
-                name_matches = any(re.search(rf"(?<![\w]){re.escape(term)}(?![\w])", haystack) for term in terms[1:])
-                if title and (ticker_match or name_matches):
-                    date_node = fields.get("pubdate") or fields.get("published") or fields.get("updated") or fields.get("date")
-                    published = "".join(date_node.itertext()).strip() if date_node is not None else None
-                    results.append({"ticker": symbol, "source": source, "title": title, "summary": re.sub(r"<[^>]+>", " ", html.unescape(description))[:1200], "url": link,
-                                    "published_at": published, "source_feed": url})
-                    matched += 1
-            sources[source] = {"status": "ok", "matches": matched, "feed": url}
-        except Exception as exc:
-            sources[source] = {"status": "unavailable", "matches": 0, "feed": url, "error": str(exc)[:220]}
+    prof = get_profile(symbol)
+    got = collect_company_news(symbol, prof.name, prof.short_name, extra_names=company_name, limit=200)
+    results = [{"ticker": symbol, "source": it["source"], "title": it["title"], "summary": it.get("summary", ""), "url": it["link"],
+                "published_at": it["published_at"], "published_display": it["date"], "match": it["match"],
+                "sentiment": it["sentiment"], "event": it["event"]} for it in got["items"]]
+    sources = got["sources"]
+    aliases, exclude = got["aliases"], got["excluded"]
     if company_website.strip():
         try:
             page_url, content, content_type = _get_public_page(company_website.strip())
-            parser = _LinksParser()
+            host = urlparse(page_url).hostname or ""
+            dom = host[4:] if host.startswith("www.") else host
+            matched = 0
             if b"<rss" in content[:1000].lower() or b"<feed" in content[:1000].lower() or "xml" in content_type.lower():
                 root = ET.fromstring(content)
-                nodes = root.findall(".//item") or root.findall(".//{http://www.w3.org/2005/Atom}entry")
-                matched = 0
-                for item in nodes:
-                    title = (item.findtext("title") or item.findtext("{http://www.w3.org/2005/Atom}title") or "").strip()
+                for item in root.findall(".//item") or root.findall(".//{http://www.w3.org/2005/Atom}entry"):
+                    title = html.unescape((item.findtext("title") or item.findtext("{http://www.w3.org/2005/Atom}title") or "").strip())
                     link = item.findtext("link") or ""
-                    if not link:
-                        link_node = item.find("{http://www.w3.org/2005/Atom}link")
-                        link = link_node.attrib.get("href", "") if link_node is not None else ""
-                    if title and any(term in title.casefold() for term in terms):
-                        results.append({"ticker": symbol, "source": "Website doanh nghiệp", "title": title, "summary": "", "url": urljoin(page_url, link), "published_at": item.findtext("pubDate"), "source_feed": page_url}); matched += 1
-                sources["Website doanh nghiệp"] = {"status": "ok", "matches": matched, "feed": page_url}
+                    if not link.strip():
+                        node = item.find("{http://www.w3.org/2005/Atom}link")
+                        link = node.attrib.get("href", "") if node is not None else ""
+                    url = clean_url(link, page_url, (dom,))
+                    if title and url:   # trang tin của chính doanh nghiệp: mọi bài đều liên quan
+                        d = parse_date(item.findtext("pubDate") or "")
+                        results.append({"ticker": symbol, "source": "Website doanh nghiệp", "title": title, "summary": "", "url": url,
+                                        "published_at": d.isoformat(timespec="minutes") if d else None,
+                                        "published_display": f"{d:%d/%m/%Y %H:%M}" if d else "", "match": "Website doanh nghiệp"}); matched += 1
             else:
+                parser = _LinksParser()
                 parser.feed(content.decode("utf-8", errors="replace"))
-                host = urlparse(page_url).hostname
-                candidates = [entry for entry in parser.links if re.search(r"news|tin|bao-chi|media|investor|quan-he-co-dong", entry["href"], re.I)]
-                matched = 0
-                for entry in candidates[:250]:
-                    title, article_url = html.unescape(re.sub(r"\s+", " ", entry["text"])).strip(), urljoin(page_url, entry["href"])
-                    parsed = urlparse(article_url)
-                    if not title or parsed.hostname != host or not any(term in title.casefold() for term in terms): continue
-                    results.append({"ticker": symbol, "source": "Website doanh nghiệp", "title": title, "summary": "", "url": article_url, "published_at": None, "source_feed": page_url}); matched += 1
-                sources["Website doanh nghiệp"] = {"status": "ok", "matches": matched, "feed": page_url, "note": "Liên kết cùng domain được tìm trong trang bạn cung cấp."}
+                for entry in parser.links[:400]:
+                    title = html.unescape(re.sub(r"\s+", " ", entry["text"])).strip()
+                    url = clean_url(entry["href"], page_url, (dom,))
+                    if len(title) < 20 or not url or url.rstrip("/") == page_url.rstrip("/"):
+                        continue
+                    if not re.search(r"news|tin-|tin/|bao-chi|media|investor|quan-he-co-dong|thong-cao|cong-bo", url, re.I):
+                        continue
+                    results.append({"ticker": symbol, "source": "Website doanh nghiệp", "title": title, "summary": "", "url": url,
+                                    "published_at": None, "published_display": "", "match": "Website doanh nghiệp"}); matched += 1
+            sources["Website doanh nghiệp"] = {"status": "ok", "matches": matched, "feed": page_url}
         except Exception as exc:
             sources["Website doanh nghiệp"] = {"status": "unavailable", "matches": 0, "feed": company_website, "error": str(exc)[:220]}
-    results.sort(key=lambda row: row.get("published_at") or "", reverse=True)
-    return {"ticker": symbol, "company_name": company_name or None, "articles": results[:limit], "sources": sources,
-            "retrieved_at": datetime.now(timezone.utc).isoformat(),
-            "warning": "Tìm trong tiêu đề/tóm tắt của RSS công khai, không thu thập toàn văn. Nguồn có thể lỗi/đổi feed; tuân thủ điều khoản từng báo và ghi nguồn khi trích dẫn."}
+    seen, unique = set(), []
+    for row in results:
+        if row["url"] in seen:
+            continue
+        seen.add(row["url"]); unique.append(row)
+    unique.sort(key=lambda row: row.get("published_at") or "", reverse=True)
+    return {"ticker": symbol, "company_name": prof.name or company_name or None, "aliases": aliases, "excluded_names": exclude,
+            "articles": unique[:limit], "sources": sources, "retrieved_at": datetime.now(timezone.utc).isoformat(),
+            "warning": "Chỉ giữ tin có tiêu đề nhắc đúng mã cổ phiếu (viết hoa, đứng riêng) hoặc nguyên tên doanh nghiệp; "
+                       "tin theo mã lấy từ CafeF. Liên kết dẫn tới bài gốc trên trang nguồn."}

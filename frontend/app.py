@@ -6,6 +6,7 @@ Toàn bộ số liệu lấy qua FastAPI backend (backend/app). Chạy:
 """
 from __future__ import annotations
 
+import html
 import json
 import math
 import os
@@ -575,7 +576,7 @@ elif page == "Báo cáo và tin doanh nghiệp":
         sec("Tra cứu tài liệu doanh nghiệp")
         c1, c2, c3 = st.columns([1, 2, 3])
         rt = c1.text_input("Mã cổ phiếu", ticker, key="report_ticker").strip().upper()
-        cname = c2.text_input("Tên doanh nghiệp (lọc tin, không bắt buộc)", "")
+        cname = c2.text_input("Tên gọi khác để lọc tin (không bắt buộc)", "", placeholder="VD: Hòa Phát, Vinamilk")
         site = c3.text_input("Trang tin chính thức (không bắt buộc)", "", placeholder="https://cong-ty.vn/tin-tuc")
         b1, b2, b3 = st.columns(3)
         if b1.button("Báo cáo thường niên", width="stretch"):
@@ -621,35 +622,27 @@ elif page == "Báo cáo và tin doanh nghiệp":
         with st.container(border=True):
             sec(f"Tin doanh nghiệp - {code}")
             arts = news.get("articles", [])
+            alias = ", ".join([code] + news.get("aliases", []))
+            st.caption(f"Lọc theo: {alias}. " + (f"Loại trừ tên doanh nghiệp khác: {', '.join(news.get('excluded_names', []))}." if news.get("excluded_names") else ""))
             if not arts:
-                sources = news.get("sources", {})
-                live = [name for name, state in sources.items() if state.get("status") == "ok"]
-                failed = [(name, state.get("error", "Nguồn không trả dữ liệu")) for name, state in sources.items()
-                          if state.get("status") != "ok"]
-                if live:
-                    st.info("Các nguồn đã được truy vấn nhưng chưa có tiêu đề khớp mã/tên doanh nghiệp. Hãy thử nhập tên công ty ở ô lọc tin.")
-                else:
-                    st.warning("Hiện không truy cập được các nguồn tin. Kiểm tra kết nối mạng/backend rồi thử lại.")
-                if failed:
-                    with st.expander("Nguồn tin đang lỗi"):
-                        for source, error in failed:
-                            st.write(f"**{source}:** {error}")
+                st.info("Chưa tìm thấy tin có tiêu đề nhắc đúng mã hoặc tên doanh nghiệp trong các nguồn đang truy cập được.")
             for item in arts:
-                with st.container(border=True):
-                    st.caption(f"{item.get('source', '')} | {item.get('published_at', '') or 'Ngày đăng không có trong nguồn'}")
-                    if item.get("url"):
-                        st.link_button(item.get("title", "Mở bài viết"), item["url"], width="stretch")
-                    else:
-                        st.markdown(f"**{item.get('title', 'Tin doanh nghiệp')}**")
-                    summary = (item.get("summary") or "").strip()
-                    if summary:
-                        st.write(summary[:500])
-            sources = news.get("sources", {})
-            if sources:
-                with st.expander("Tình trạng nguồn tin"):
-                    for source, state in sources.items():
-                        st.write(f"**{source}:** {state.get('matches', 0)} tin · "
-                                 f"{'đã truy cập' if state.get('status') == 'ok' else 'không truy cập được'}")
+                tone = item.get("sentiment") or 0
+                tcol = POS if tone > 0 else NEG if tone < 0 else MUTED
+                meta = " | ".join(x for x in (item.get("published_display") or "", item.get("source", ""), item.get("event", ""),
+                                              item.get("match", "")) if x)
+                st.markdown(f"<div class='news' style='border-left:3px solid {tcol}; padding-left:10px'>"
+                            f"<div class='muted'>{html.escape(meta)}</div>"
+                            f"<a href=\"{html.escape(item.get('url', ''), quote=True)}\" target='_blank' rel='noopener'>{html.escape(item.get('title', ''))}</a>"
+                            + (f"<div class='muted'>{html.escape((item.get('summary') or '')[:260])}</div>" if item.get("summary") else "")
+                            + "</div>", unsafe_allow_html=True)
+            src = news.get("sources", {})
+            if src:
+                with st.expander("Tình trạng từng nguồn tin"):
+                    st.dataframe(pd.DataFrame([{"Nguồn": k, "Trạng thái": {"ok": "Truy cập được", "empty": "Không có tin",
+                                                                            "unavailable": "Không truy cập được"}.get(v.get("status"), v.get("status")),
+                                                "Số tin khớp": v.get("matches", 0), "Ghi chú": v.get("error", "")} for k, v in src.items()]),
+                                 hide_index=True, width="stretch")
             st.caption(news.get("warning", ""))
 
 st.markdown("<div class='muted' style='text-align:center;margin-top:18px'>VNEquity Research | Công cụ nghiên cứu, "
